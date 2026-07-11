@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="axon_accessibility_description">Lets Axon detect when a distracting app is in the foreground so it can show focus nudges. Axon does not read window content.</string>
+</resources>
