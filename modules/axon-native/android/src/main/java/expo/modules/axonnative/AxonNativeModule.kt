@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Process
 import android.provider.Settings
+import android.provider.Telephony
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import expo.modules.axonnative.bridge.AxonBridge
@@ -60,6 +61,38 @@ class AxonNativeModule : Module() {
           0,
         )
       }
+    }
+
+    /**
+     * Polling fallback for the broadcast receiver: reads the SMS inbox
+     * content provider directly, so capture doesn't depend on the JS bridge
+     * being alive at the exact moment a message arrives (broadcasts fired
+     * while the app is backgrounded/killed have nothing listening).
+     */
+    AsyncFunction("getRecentSms") { sinceMs: Double ->
+      val results = mutableListOf<Map<String, Any>>()
+      val projection = arrayOf(Telephony.Sms.BODY, Telephony.Sms.DATE)
+      val selection = "${Telephony.Sms.DATE} >= ?"
+      val selectionArgs = arrayOf(sinceMs.toLong().toString())
+      context.contentResolver.query(
+        Telephony.Sms.Inbox.CONTENT_URI,
+        projection,
+        selection,
+        selectionArgs,
+        "${Telephony.Sms.DATE} ASC",
+      )?.use { cursor ->
+        val bodyIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.BODY)
+        val dateIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.DATE)
+        while (cursor.moveToNext()) {
+          results.add(
+            mapOf(
+              "body" to cursor.getString(bodyIdx),
+              "timestampMs" to cursor.getLong(dateIdx),
+            ),
+          )
+        }
+      }
+      results
     }
 
     // --- Notification listener (UPI notifications) ------------------------
@@ -138,10 +171,12 @@ class AxonNativeModule : Module() {
     }
 
     Function("startFocusMode") {
+      AxonBridge.focusModeActive = true
       OverlayForegroundService.startFocusBlock(context)
     }
 
     Function("stopFocusMode") {
+      AxonBridge.focusModeActive = false
       OverlayForegroundService.stop(context)
     }
 

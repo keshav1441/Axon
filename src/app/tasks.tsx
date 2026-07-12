@@ -3,7 +3,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 
-import { ModuleHeader } from '@/components/module-header';
+import { ModuleTopBar } from '@/components/module-top-bar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ModuleColors, Radius, Spacing } from '@/constants/theme';
@@ -18,7 +18,7 @@ import {
   toggleTaskDone,
   updateSubtaskTitle,
   type TaskWithSubtasks,
-} from '@/db/tasks';
+} from '@/features/tasks/api';
 import { splitTaskIntoSubtasks } from '@/features/tasks/claude';
 import { cancelNag, ensureNotificationPermission, scheduleNag } from '@/features/tasks/nagging';
 import { useVoiceCapture } from '@/features/tasks/use-voice-capture';
@@ -208,9 +208,8 @@ export default function TasksScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ModuleTopBar title="Tasks" accent={ModuleColors.tasks} subtitle="Speak a task, get subtasks" />
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <ModuleHeader title="Tasks" accent={ModuleColors.tasks} subtitle="Speak a task, get subtasks" />
-
           <ThemedView type="backgroundElement" style={styles.addCard}>
             <TextInput
               value={manualText}

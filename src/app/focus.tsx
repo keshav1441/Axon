@@ -3,11 +3,11 @@ import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 
-import { ModuleHeader } from '@/components/module-header';
+import { ModuleTopBar } from '@/components/module-top-bar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ModuleColors, Radius, Spacing } from '@/constants/theme';
-import { getFocusStreakDays, getUsageMinutesByPackage, removeFocusApp, upsertFocusApp, type FocusApp } from '@/db/focus';
+import { getFocusStreakDays, getUsageMinutesByPackage, removeFocusApp, upsertFocusApp, type FocusApp } from '@/features/focus/api';
 import { pushFocusConfigToNative } from '@/features/focus/config';
 import { useTheme } from '@/hooks/use-theme';
 import { AxonNative, usePermissionStatus } from '@/native/axon-native';
@@ -134,7 +134,7 @@ export default function FocusScreen() {
   const load = useCallback(async () => {
     const [freshApps, freshUsage, freshStreak] = await Promise.all([
       pushFocusConfigToNative(),
-      getUsageMinutesByPackage(0),
+      getUsageMinutesByPackage(),
       getFocusStreakDays(),
     ]);
     setApps(freshApps);
@@ -178,9 +178,8 @@ export default function FocusScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ModuleTopBar title="Focus" accent={ModuleColors.focus} subtitle="Screen-time nudges and budgets" />
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <ModuleHeader title="Focus" accent={ModuleColors.focus} subtitle="Screen-time nudges and budgets" />
-
           <ThemedView type="backgroundElement" style={styles.card}>
             <PermissionRow label="Draw over other apps" kind="overlay" />
             <PermissionRow label="Accessibility service" kind="accessibility" />

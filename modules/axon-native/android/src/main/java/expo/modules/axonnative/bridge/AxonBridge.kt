@@ -13,6 +13,7 @@ object AxonBridge {
 
   var distractionPackages: Set<String> = emptySet()
   var budgetMinutesByPackage: Map<String, Int> = emptyMap()
+  var focusModeActive: Boolean = false
 
   fun send(event: String, payload: Map<String, Any?>) {
     emit?.invoke(event, payload)

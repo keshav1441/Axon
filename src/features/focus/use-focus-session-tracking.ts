@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-import { recordFocusSession } from '@/db/focus';
+import { flushPendingFocusSessions, recordFocusSession } from '@/features/focus/api';
 import { focusConfigCache, pushFocusConfigToNative } from '@/features/focus/config';
 import { subscribeForegroundApp } from '@/native/axon-native';
 
@@ -10,6 +10,7 @@ export function useFocusSessionTracking() {
 
   useEffect(() => {
     pushFocusConfigToNative();
+    flushPendingFocusSessions();
   }, []);
 
   useEffect(() => {

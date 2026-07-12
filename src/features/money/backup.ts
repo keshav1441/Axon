@@ -1,26 +1,39 @@
-import { ANDROID_DATABASE_PATH } from '@op-engineering/op-sqlite';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
-import { getOrCreateDbKey } from '@/db/key';
+import { listTransactions } from '@/features/money/api';
+
+function csvEscape(value: string): string {
+  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
 
 /**
- * The DB file on disk is already SQLCipher-encrypted (AES-256), so "export"
- * just shares that file plus the recovery key needed to reopen it - no
- * separate, weaker export format is invented for this.
+ * Data now lives in the cloud DB (HTTPS + your account), not an on-device
+ * encrypted file, so export is just a plain CSV snapshot of your own data.
  */
-export async function exportEncryptedBackup(): Promise<{ recoveryKey: string }> {
-  const recoveryKey = await getOrCreateDbKey();
-  const dbFile = new File(`file://${ANDROID_DATABASE_PATH}/axon.db`);
-  const dest = new File(Paths.cache, `axon-backup-${Date.now()}.db`);
+export async function exportTransactionsCsv(): Promise<void> {
+  const transactions = await listTransactions();
 
-  await dbFile.copy(dest);
+  const header = ['date', 'direction', 'amount', 'merchant', 'category', 'source'];
+  const rows = transactions.map((t) =>
+    [
+      new Date(t.occurredAt).toISOString(),
+      t.direction,
+      t.amount,
+      t.merchant ?? '',
+      t.category ?? '',
+      t.source,
+    ]
+      .map((v) => csvEscape(String(v)))
+      .join(','),
+  );
+  const csv = [header.join(','), ...rows].join('\n');
+
+  const dest = new File(Paths.cache, `axon-transactions-${Date.now()}.csv`);
+  dest.create();
+  dest.write(csv);
 
   if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(dest.uri, {
-      dialogTitle: 'Save Axon backup (keep the recovery key with it)',
-    });
+    await Sharing.shareAsync(dest.uri, { dialogTitle: 'Save Axon transactions' });
   }
-
-  return { recoveryKey };
 }

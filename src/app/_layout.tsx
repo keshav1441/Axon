@@ -1,23 +1,66 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { AuthGate } from '@/components/auth-gate';
+import { isLoggedIn } from '@/features/auth/api';
 import { useFocusSessionTracking } from '@/features/focus/use-focus-session-tracking';
 import { useTransactionCapture } from '@/features/money/use-transaction-capture';
+import { ThemePreferenceProvider, useThemePreference } from '@/hooks/use-theme-preference';
 
 SplashScreen.preventAutoHideAsync();
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+function AuthedApp() {
   useTransactionCapture();
   useFocusSessionTracking();
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="money" />
+      <Stack.Screen name="tasks" />
+      <Stack.Screen name="focus" />
+      <Stack.Screen name="settings" />
+    </Stack>
+  );
+}
+
+function RootContent() {
+  const { resolvedScheme } = useThemePreference();
+  const [authed, setAuthed] = useState<boolean | null>(null);
+
+  const checkAuth = useCallback(() => {
+    isLoggedIn().then(setAuthed);
+  }, []);
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') checkAuth();
+    });
+    return () => sub.remove();
+  }, [checkAuth]);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={resolvedScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AnimatedSplashOverlay />
-      <AppTabs />
+      {authed === true ? (
+        <AuthedApp />
+      ) : authed === false ? (
+        <AuthGate onAuthenticated={() => setAuthed(true)} />
+      ) : null}
     </ThemeProvider>
+  );
+}
+
+export default function TabLayout() {
+  return (
+    <ThemePreferenceProvider>
+      <RootContent />
+    </ThemePreferenceProvider>
   );
 }

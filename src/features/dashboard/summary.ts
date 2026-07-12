@@ -1,6 +1,5 @@
-import { getFocusStreakDays, getUsageMinutesByPackage, listFocusApps } from '@/db/focus';
-import { listTasksWithSubtasks } from '@/db/tasks';
-import { getMonthSummary } from '@/db/transactions';
+import { apiGet } from '@/api/client';
+import { getUsageMinutesByPackage, listFocusApps } from '@/features/focus/api';
 
 export type DashboardSummary = {
   monthSpend: number;
@@ -12,11 +11,14 @@ export type DashboardSummary = {
   todayScore: number;
 };
 
-function monthBounds(date = new Date()) {
-  const start = new Date(date.getFullYear(), date.getMonth(), 1).getTime();
-  const end = new Date(date.getFullYear(), date.getMonth() + 1, 1).getTime();
-  return { start, end };
-}
+type SummaryResponse = {
+  monthSpend: string;
+  monthIncome: string;
+  tasksDone: number;
+  tasksTotal: number;
+  screenTimeMinutesToday: number;
+  focusStreakDays: number;
+};
 
 /**
  * There's no user-set monthly budget yet, so spend has no target to score
@@ -25,21 +27,15 @@ function monthBounds(date = new Date()) {
  * folded into the number.
  */
 export async function getDashboardSummary(): Promise<DashboardSummary> {
-  const { start, end } = monthBounds();
-  const [monthSummary, tasks, focusApps, usageToday, focusStreakDays] = await Promise.all([
-    getMonthSummary(start, end),
-    listTasksWithSubtasks(),
+  const [res, focusApps, usageToday] = await Promise.all([
+    apiGet<SummaryResponse>('/api/dashboard/summary'),
     listFocusApps(),
-    getUsageMinutesByPackage(0),
-    getFocusStreakDays(),
+    getUsageMinutesByPackage(),
   ]);
 
-  const tasksDone = tasks.filter((t) => t.done).length;
-  const tasksTotal = tasks.length;
-  const taskRatio = tasksTotal === 0 ? 1 : tasksDone / tasksTotal;
+  const taskRatio = res.tasksTotal === 0 ? 1 : res.tasksDone / res.tasksTotal;
 
   const budgetedApps = focusApps.filter((a) => a.budget_minutes != null);
-  const screenTimeMinutesToday = Object.values(usageToday).reduce((sum, m) => sum + m, 0);
   const focusRatio =
     budgetedApps.length === 0
       ? 1
@@ -53,12 +49,12 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   const todayScore = Math.round(taskRatio * 50 + focusRatio * 50);
 
   return {
-    monthSpend: monthSummary.totalSpend,
-    monthIncome: monthSummary.totalIncome,
-    tasksDone,
-    tasksTotal,
-    screenTimeMinutesToday,
-    focusStreakDays,
+    monthSpend: Number(res.monthSpend),
+    monthIncome: Number(res.monthIncome),
+    tasksDone: res.tasksDone,
+    tasksTotal: res.tasksTotal,
+    screenTimeMinutesToday: res.screenTimeMinutesToday,
+    focusStreakDays: res.focusStreakDays,
     todayScore,
   };
 }

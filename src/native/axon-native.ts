@@ -75,6 +75,10 @@ export function subscribeSms(callback: (event: SmsReceivedEvent) => void) {
   return () => sub.remove();
 }
 
+export function getRecentSms(sinceMs: number): Promise<{ body: string; timestampMs: number }[]> {
+  return AxonNative.getRecentSms(sinceMs);
+}
+
 export function subscribeUpiNotification(callback: (event: UpiNotificationEvent) => void) {
   const sub = AxonNative.addListener('onUpiNotification', callback);
   return () => sub.remove();
