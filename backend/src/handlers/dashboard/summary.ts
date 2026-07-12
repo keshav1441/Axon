@@ -1,11 +1,14 @@
 import { and, eq, gte } from 'drizzle-orm';
 import type { Db } from '../../db/client';
-import { transactions, tasks, focusApps } from '../../db/schema';
-import { getUsageMinutesByPackage, getFocusStreakDays } from '../focus/usage';
+import { transactions, tasks, focusSessions } from '../../db/schema';
+
+/** Must match the client's FOCUS_MODE_SESSION_PACKAGE sentinel (src/features/focus/focus-mode.ts). */
+const FOCUS_MODE_SESSION_PACKAGE = 'axon.focus_mode_block';
 
 export async function getDashboardSummary(db: Db, userId: string) {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const yearStart = new Date(now.getFullYear(), 0, 1);
 
   const monthTxns = await db
     .select()
@@ -24,14 +27,32 @@ export async function getDashboardSummary(db: Db, userId: string) {
   const tasksDone = userTasks.filter((t) => t.status === 'done').length;
   const tasksTotal = userTasks.length;
 
-  // Only sum currently-configured distraction apps - excludes Focus Mode block
-  // sessions (a separate, non-distraction concept recorded in the same table)
-  // and any stray rows for apps that are no longer tracked.
-  const distractionApps = await db.select().from(focusApps).where(eq(focusApps.userId, userId));
-  const usageToday = await getUsageMinutesByPackage(db, userId, 0);
-  const screenTimeMinutesToday = distractionApps.reduce((sum, app) => sum + (usageToday[app.packageName] ?? 0), 0);
+  const focusModeSessionsThisYear = await db
+    .select()
+    .from(focusSessions)
+    .where(
+      and(
+        eq(focusSessions.userId, userId),
+        eq(focusSessions.appPackage, FOCUS_MODE_SESSION_PACKAGE),
+        gte(focusSessions.startedAt, yearStart),
+      ),
+    );
 
-  const focusStreakDays = await getFocusStreakDays(db, userId);
+  let focusMinutesThisMonth = 0;
+  let focusMinutesThisYear = 0;
+  for (const s of focusModeSessionsThisYear) {
+    if (!s.endedAt) continue;
+    const minutes = (s.endedAt.getTime() - s.startedAt.getTime()) / 60_000;
+    focusMinutesThisYear += minutes;
+    if (s.startedAt >= monthStart) focusMinutesThisMonth += minutes;
+  }
 
-  return { monthSpend, monthIncome, tasksDone, tasksTotal, screenTimeMinutesToday, focusStreakDays };
+  return {
+    monthSpend,
+    monthIncome,
+    tasksDone,
+    tasksTotal,
+    focusMinutesThisMonth: Math.round(focusMinutesThisMonth),
+    focusMinutesThisYear: Math.round(focusMinutesThisYear),
+  };
 }

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -6,10 +6,16 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ModuleColors, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import type { FocusApp } from '@/features/focus/api';
 import { usePermissionStatus } from '@/native/axon-native';
 
 const FOCUS_MODE_PRESETS_MIN = [25, 60, 120];
+
+function formatHours(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins === 0 ? `${hours}h` : `${hours}h ${mins}m`;
+}
 
 function PermissionRow({ label, kind }: { label: string; kind: 'overlay' | 'accessibility' | 'usageAccess' }) {
   const { granted, request } = usePermissionStatus(kind);
@@ -28,19 +34,15 @@ function PermissionRow({ label, kind }: { label: string; kind: 'overlay' | 'acce
 }
 
 export function DashboardTab({
-  apps,
-  usage,
-  streak,
+  monthMinutes,
+  yearMinutes,
   focusModeActiveUntil,
   onStartFocusMode,
-  onStopFocusMode,
 }: {
-  apps: FocusApp[];
-  usage: Record<string, number>;
-  streak: number;
+  monthMinutes: number;
+  yearMinutes: number;
   focusModeActiveUntil: number | null;
   onStartFocusMode: (minutes: number) => void;
-  onStopFocusMode: () => void;
 }) {
   const theme = useTheme();
   const [customOpen, setCustomOpen] = useState(false);
@@ -57,70 +59,42 @@ export function DashboardTab({
     onStartFocusMode(Math.round(parsed));
   }, [customMinutes, onStartFocusMode]);
 
-  const { totalUsage, totalBudget } = useMemo(() => {
-    let totalUsage = 0;
-    let totalBudget = 0;
-    for (const app of apps) {
-      totalUsage += usage[app.package_name] ?? 0;
-      if (app.budget_minutes != null) totalBudget += app.budget_minutes;
-    }
-    return { totalUsage, totalBudget };
-  }, [apps, usage]);
-
-  const budgetPct = totalBudget > 0 ? Math.min(totalUsage / totalBudget, 1) : 0;
-
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
       <ThemedView type="backgroundElement" style={[styles.heroCard, { borderColor: theme.border }]}>
         <ThemedText type="micro" themeColor="textSecondary">
-          STREAK
+          FOCUS TIME
         </ThemedText>
-        <View style={styles.streakRow}>
-          <Ionicons name="flame" size={30} color={ModuleColors.focus} />
-          <ThemedText type="display" style={[styles.heroValue, { color: ModuleColors.focus }]}>
-            {streak}
-          </ThemedText>
-        </View>
-        <ThemedText type="small" themeColor="textSecondary">
-          {streak === 1 ? 'day under limit' : 'days under limit'}
-        </ThemedText>
-      </ThemedView>
-
-      {apps.length > 0 && (
-        <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.border }]}>
-          <View style={styles.rowBetween}>
-            <ThemedText type="heading">Today</ThemedText>
+        <View style={styles.heroSplitRow}>
+          <View style={styles.heroSplitCol}>
+            <ThemedText type="display" style={[styles.heroValue, { color: ModuleColors.focus }]}>
+              {formatHours(monthMinutes)}
+            </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              {totalUsage}m{totalBudget > 0 ? ` / ${totalBudget}m` : ''}
+              this month
             </ThemedText>
           </View>
-          {totalBudget > 0 && (
-            <View style={[styles.progressTrack, { backgroundColor: theme.border }]}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${budgetPct * 100}%`, backgroundColor: budgetPct >= 1 ? theme.danger : ModuleColors.focus },
-                ]}
-              />
-            </View>
-          )}
-        </ThemedView>
-      )}
+          <View style={[styles.heroDivider, { backgroundColor: theme.border }]} />
+          <View style={[styles.heroSplitCol, styles.heroSplitColRight]}>
+            <ThemedText type="display" style={[styles.heroValue, { color: ModuleColors.focus }]}>
+              {formatHours(yearMinutes)}
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              this year
+            </ThemedText>
+          </View>
+        </View>
+      </ThemedView>
 
       <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.border }]}>
         <ThemedText type="heading">Focus Mode</ThemedText>
         {focusModeActiveUntil ? (
-          <View style={styles.gap2}>
-            <View style={styles.activeRow}>
-              <Ionicons name="shield-checkmark" size={18} color={ModuleColors.focus} />
-              <ThemedText type="body" themeColor="textSecondary">
-                Blocking distraction apps until{' '}
-                {new Date(focusModeActiveUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </ThemedText>
-            </View>
-            <Pressable onPress={onStopFocusMode} style={[styles.stopFocusButton, { borderColor: theme.border }]}>
-              <ThemedText type="small">Stop early</ThemedText>
-            </Pressable>
+          <View style={styles.activeRow}>
+            <Ionicons name="shield-checkmark" size={18} color={ModuleColors.focus} />
+            <ThemedText type="body" themeColor="textSecondary">
+              Blocking distraction apps until{' '}
+              {new Date(focusModeActiveUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </ThemedText>
           </View>
         ) : (
           <View style={styles.gap2}>
@@ -160,6 +134,10 @@ export function DashboardTab({
                 </Pressable>
               </View>
             )}
+
+            <ThemedText type="micro" themeColor="textSecondary">
+              Once started, Focus Mode runs the full duration - distraction apps stay blocked until it ends.
+            </ThemedText>
           </View>
         )}
       </ThemedView>
@@ -180,23 +158,15 @@ const styles = StyleSheet.create({
     borderRadius: Radius.large,
     borderWidth: StyleSheet.hairlineWidth,
     padding: Spacing.four,
-    gap: Spacing.one,
-    alignItems: 'center',
+    gap: Spacing.two,
   },
-  streakRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  heroValue: { fontSize: 44, lineHeight: 48 },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  progressTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 3 },
+  heroSplitRow: { flexDirection: 'row', alignItems: 'center' },
+  heroSplitCol: { flex: 1, gap: Spacing.half },
+  heroSplitColRight: { alignItems: 'flex-end' },
+  heroDivider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', marginHorizontal: Spacing.three },
+  heroValue: { fontSize: 36, lineHeight: 40 },
   gap2: { gap: Spacing.two },
   activeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  stopFocusButton: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
-    borderRadius: Radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
   presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   presetButton: {
     flexDirection: 'row',

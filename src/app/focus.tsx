@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -12,14 +12,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ModuleColors, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import {
-  getFocusStreakDays,
-  getUsageMinutesByPackage,
-  listFocusSessions,
-  recordFocusSession,
-  type FocusApp,
-  type FocusSession,
-} from '@/features/focus/api';
+import { listFocusSessions, recordFocusSession, type FocusApp, type FocusSession } from '@/features/focus/api';
 import { pushFocusConfigToNative } from '@/features/focus/config';
 import {
   clearPersistedFocusModeState,
@@ -31,7 +24,7 @@ import { AxonNative, usePermissionStatus } from '@/native/axon-native';
 import { readCache, writeCache } from '@/lib/cache';
 
 const FOCUS_CACHE_KEY = 'focus-data';
-type FocusCache = { apps: FocusApp[]; usage: Record<string, number>; sessions: FocusSession[]; streak: number };
+type FocusCache = { apps: FocusApp[]; sessions: FocusSession[] };
 
 type FocusTab = 'dashboard' | 'apps' | 'history';
 
@@ -41,38 +34,40 @@ const TABS: { key: FocusTab; label: string; icon: keyof typeof Ionicons.glyphMap
   { key: 'history', label: 'History', icon: 'time-outline' },
 ];
 
+function monthMinutesTotal(sessions: FocusSession[], monthsAgo: 'month' | 'year'): number {
+  const now = new Date();
+  const start = monthsAgo === 'month' ? new Date(now.getFullYear(), now.getMonth(), 1) : new Date(now.getFullYear(), 0, 1);
+  let total = 0;
+  for (const s of sessions) {
+    if (s.appPackage !== FOCUS_MODE_SESSION_PACKAGE || !s.endedAt) continue;
+    const startedAt = new Date(s.startedAt);
+    if (startedAt < start) continue;
+    total += (new Date(s.endedAt).getTime() - startedAt.getTime()) / 60_000;
+  }
+  return Math.round(total);
+}
+
 export default function FocusScreen() {
   const theme = useTheme();
   const [tab, setTab] = useState<FocusTab>('dashboard');
   const [apps, setApps] = useState<FocusApp[]>([]);
-  const [usage, setUsage] = useState<Record<string, number>>({});
   const [sessions, setSessions] = useState<FocusSession[]>([]);
-  const [streak, setStreak] = useState(0);
   const [focusModeActiveUntil, setFocusModeActiveUntil] = useState<number | null>(null);
   const [focusModeStartedAt, setFocusModeStartedAt] = useState<number | null>(null);
   const overlayPermission = usePermissionStatus('overlay');
 
   const load = useCallback(async () => {
-    const [freshApps, freshUsage, freshStreak, freshSessions] = await Promise.all([
-      pushFocusConfigToNative(),
-      getUsageMinutesByPackage(),
-      getFocusStreakDays(),
-      listFocusSessions(),
-    ]);
+    const [freshApps, freshSessions] = await Promise.all([pushFocusConfigToNative(), listFocusSessions()]);
     setApps(freshApps);
-    setUsage(freshUsage);
-    setStreak(freshStreak);
     setSessions(freshSessions);
-    writeCache<FocusCache>(FOCUS_CACHE_KEY, { apps: freshApps, usage: freshUsage, sessions: freshSessions, streak: freshStreak });
+    writeCache<FocusCache>(FOCUS_CACHE_KEY, { apps: freshApps, sessions: freshSessions });
   }, []);
 
   useEffect(() => {
     readCache<FocusCache>(FOCUS_CACHE_KEY).then((cached) => {
       if (!cached) return;
       setApps(cached.apps);
-      setUsage(cached.usage);
       setSessions(cached.sessions);
-      setStreak(cached.streak);
     });
   }, []);
 
@@ -99,6 +94,8 @@ export default function FocusScreen() {
     });
   }, []);
 
+  // Focus Mode always runs to completion - there is no early stop, so every
+  // recorded session is a successful one by definition.
   useEffect(() => {
     if (!focusModeActiveUntil || !focusModeStartedAt) return;
     const remaining = focusModeActiveUntil - Date.now();
@@ -134,17 +131,6 @@ export default function FocusScreen() {
     [overlayPermission],
   );
 
-  const stopFocusMode = useCallback(() => {
-    AxonNative.stopFocusMode();
-    if (focusModeStartedAt) {
-      recordFocusSession(FOCUS_MODE_SESSION_PACKAGE, focusModeStartedAt, Date.now()).catch(() => {});
-    }
-    clearPersistedFocusModeState();
-    setFocusModeActiveUntil(null);
-    setFocusModeStartedAt(null);
-    load();
-  }, [focusModeStartedAt, load]);
-
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -155,6 +141,9 @@ export default function FocusScreen() {
     }
   }, [load]);
 
+  const monthMinutes = useMemo(() => monthMinutesTotal(sessions, 'month'), [sessions]);
+  const yearMinutes = useMemo(() => monthMinutesTotal(sessions, 'year'), [sessions]);
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -163,17 +152,15 @@ export default function FocusScreen() {
         <View style={styles.content}>
           {tab === 'dashboard' && (
             <DashboardTab
-              apps={apps}
-              usage={usage}
-              streak={streak}
+              monthMinutes={monthMinutes}
+              yearMinutes={yearMinutes}
               focusModeActiveUntil={focusModeActiveUntil}
               onStartFocusMode={startFocusMode}
-              onStopFocusMode={stopFocusMode}
             />
           )}
-          {tab === 'apps' && <AppsTab apps={apps} usage={usage} onChanged={load} />}
+          {tab === 'apps' && <AppsTab apps={apps} onChanged={load} />}
           {tab === 'history' && (
-            <HistoryTab sessions={sessions} apps={apps} refreshing={refreshing} onRefresh={onRefresh} />
+            <HistoryTab sessions={sessions} refreshing={refreshing} onRefresh={onRefresh} />
           )}
         </View>
 

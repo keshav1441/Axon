@@ -1,29 +1,18 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 
-import { flushPendingFocusSessions, recordFocusSession } from '@/features/focus/api';
-import { focusConfigCache, pushFocusConfigToNative } from '@/features/focus/config';
-import { subscribeForegroundApp } from '@/native/axon-native';
+import { flushPendingFocusSessions } from '@/features/focus/api';
+import { pushFocusConfigToNative } from '@/features/focus/config';
 
-/** Mounted once at the app root - turns foreground-app-change events into completed focus_sessions rows. */
+/**
+ * Mounted once at the app root. Only pushes the distraction-app list to
+ * native (so the accessibility service knows what to block during Focus
+ * Mode) and retries any queued Focus Mode session writes - per-app usage
+ * is no longer tracked or stored, by design: no timers, no history for
+ * individual distraction apps, only completed Focus Mode sessions matter.
+ */
 export function useFocusSessionTracking() {
-  const activeSession = useRef<{ packageName: string; startedAt: number } | null>(null);
-
   useEffect(() => {
     pushFocusConfigToNative();
     flushPendingFocusSessions();
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = subscribeForegroundApp(({ packageName, timestampMs }) => {
-      const current = activeSession.current;
-      if (current && current.packageName !== packageName) {
-        recordFocusSession(current.packageName, current.startedAt, timestampMs);
-        activeSession.current = null;
-      }
-      if (focusConfigCache.distractionPackages.has(packageName) && !activeSession.current) {
-        activeSession.current = { packageName, startedAt: timestampMs };
-      }
-    });
-    return unsubscribe;
   }, []);
 }

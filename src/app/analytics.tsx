@@ -12,6 +12,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { listTransactions } from '@/features/money/api';
 import { listTasksWithSubtasks } from '@/features/tasks/api';
 import { listFocusSessions } from '@/features/focus/api';
+import { FOCUS_MODE_SESSION_PACKAGE } from '@/features/focus/focus-mode';
 import { formatRupees } from '@/features/money/format';
 
 const MONTHS_BACK = 6;
@@ -107,7 +108,7 @@ export default function AnalyticsScreen() {
     }
 
     for (const s of sessions) {
-      if (!s.endedAt) continue;
+      if (!s.endedAt || s.appPackage !== FOCUS_MODE_SESSION_PACKAGE) continue;
       const bucket = byKey.get(monthKey(new Date(s.startedAt)));
       if (!bucket) continue;
       bucket.focusMinutes += Math.max(
@@ -172,10 +173,10 @@ export default function AnalyticsScreen() {
               </ThemedText>
             </ThemedView>
             <ThemedView type="backgroundElement" style={[styles.totalCard, { borderColor: theme.border }]}>
-              <Ionicons name="time-outline" size={18} color={ModuleColors.focus} />
+              <Ionicons name="shield-checkmark-outline" size={18} color={ModuleColors.focus} />
               <ThemedText type="heading">{Math.round(totals.focusMinutes / 60)}h</ThemedText>
               <ThemedText type="micro" themeColor="textSecondary">
-                DISTRACTION TIME
+                FOCUS TIME
               </ThemedText>
             </ThemedView>
           </View>
@@ -223,7 +224,7 @@ export default function AnalyticsScreen() {
 
           <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.border }]}>
             <ThemedText type="heading" style={styles.sectionTitle}>
-              Distraction time by month
+              Focus time by month
             </ThemedText>
             {months.map((m) => (
               <BarRow

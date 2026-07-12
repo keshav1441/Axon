@@ -23,10 +23,16 @@ const EMPTY_SUMMARY: DashboardSummary = {
   monthIncome: 0,
   tasksDone: 0,
   tasksTotal: 0,
-  screenTimeMinutesToday: 0,
-  focusStreakDays: 0,
-  todayScore: 0,
+  focusMinutesThisMonth: 0,
+  focusMinutesThisYear: 0,
 };
+
+function formatHours(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins === 0 ? `${hours}h` : `${hours}h ${mins}m`;
+}
 
 const QUOTES = [
   'Small disciplines repeated with consistency lead to great achievements.',
@@ -100,15 +106,15 @@ export default function HomeScreen() {
               accent={ModuleColors.tasks}
             />
             <StatCard
-              label="Screen time today"
-              value={`${summary.screenTimeMinutesToday}m`}
-              subtitle="across distraction apps"
+              label="Focus time this month"
+              value={formatHours(summary.focusMinutesThisMonth)}
+              subtitle="in Focus Mode"
               accent={ModuleColors.focus}
             />
             <StatCard
-              label="Focus streak"
-              value={`${summary.focusStreakDays} days`}
-              subtitle="under budget"
+              label="Focus time this year"
+              value={formatHours(summary.focusMinutesThisYear)}
+              subtitle="in Focus Mode"
               accent={ModuleColors.focus}
             />
           </View>
