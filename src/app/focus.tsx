@@ -1,145 +1,56 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
+import { AppsTab } from '@/components/focus/apps-tab';
+import { DashboardTab } from '@/components/focus/dashboard-tab';
+import { HistoryTab } from '@/components/focus/history-tab';
 import { ModuleTopBar } from '@/components/module-top-bar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ModuleColors, Radius, Spacing } from '@/constants/theme';
-import { getFocusStreakDays, getUsageMinutesByPackage, removeFocusApp, upsertFocusApp, type FocusApp } from '@/features/focus/api';
-import { pushFocusConfigToNative } from '@/features/focus/config';
 import { useTheme } from '@/hooks/use-theme';
+import {
+  getFocusStreakDays,
+  getUsageMinutesByPackage,
+  listFocusSessions,
+  type FocusApp,
+  type FocusSession,
+} from '@/features/focus/api';
+import { pushFocusConfigToNative } from '@/features/focus/config';
 import { AxonNative, usePermissionStatus } from '@/native/axon-native';
 
-const FOCUS_MODE_PRESETS_MIN = [25, 60, 120];
+type FocusTab = 'dashboard' | 'apps' | 'history';
 
-function PermissionRow({
-  label,
-  kind,
-}: {
-  label: string;
-  kind: 'overlay' | 'accessibility' | 'usageAccess';
-}) {
-  const { granted, request } = usePermissionStatus(kind);
-  if (granted) return null;
-  return (
-    <Pressable onPress={request} style={styles.permissionRow}>
-      <ThemedText type="small">{label}</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        Grant →
-      </ThemedText>
-    </Pressable>
-  );
-}
-
-function FocusAppRow({
-  app,
-  usageMinutes,
-  onChanged,
-}: {
-  app: FocusApp;
-  usageMinutes: number;
-  onChanged: () => void;
-}) {
-  const theme = useTheme();
-  const [budgetText, setBudgetText] = useState(String(app.budget_minutes ?? ''));
-  const overBudget = app.budget_minutes != null && usageMinutes >= app.budget_minutes;
-
-  const commitBudget = useCallback(async () => {
-    const parsed = Number(budgetText);
-    await upsertFocusApp({
-      ...app,
-      budget_minutes: Number.isFinite(parsed) && parsed > 0 ? parsed : null,
-    });
-    await pushFocusConfigToNative();
-    onChanged();
-  }, [app, budgetText, onChanged]);
-
-  return (
-    <View style={styles.appRow}>
-      <View style={styles.appRowMain}>
-        <ThemedText type="body">{app.label}</ThemedText>
-        <ThemedText type="small" themeColor={overBudget ? undefined : 'textSecondary'} style={overBudget ? { color: ModuleColors.focus } : undefined}>
-          {usageMinutes}m today{app.budget_minutes != null ? ` / ${app.budget_minutes}m budget` : ''}
-        </ThemedText>
-      </View>
-      <TextInput
-        value={budgetText}
-        onChangeText={setBudgetText}
-        onBlur={commitBudget}
-        placeholder="mins/day"
-        placeholderTextColor={theme.textSecondary}
-        keyboardType="number-pad"
-        style={[styles.budgetInput, { color: theme.text }]}
-      />
-      <Pressable
-        onPress={async () => {
-          await removeFocusApp(app.package_name);
-          await pushFocusConfigToNative();
-          onChanged();
-        }}>
-        <ThemedText type="small" themeColor="textSecondary">
-          Remove
-        </ThemedText>
-      </Pressable>
-    </View>
-  );
-}
-
-function AddAppPicker({ onAdded }: { onAdded: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [apps, setApps] = useState<{ packageName: string; label: string }[]>([]);
-
-  const toggleOpen = useCallback(() => {
-    if (!open) setApps(AxonNative.listInstalledApps());
-    setOpen((v) => !v);
-  }, [open]);
-
-  return (
-    <View>
-      <Pressable onPress={toggleOpen} style={styles.addAppButton}>
-        <ThemedText type="body" style={{ color: ModuleColors.focus }}>
-          {open ? 'Close' : '+ Add distraction app'}
-        </ThemedText>
-      </Pressable>
-      {open && (
-        <ScrollView style={styles.appPickerList} nestedScrollEnabled>
-          {apps.map((app) => (
-            <Pressable
-              key={app.packageName}
-              style={styles.appPickerRow}
-              onPress={async () => {
-                await upsertFocusApp({ package_name: app.packageName, label: app.label, budget_minutes: null });
-                await pushFocusConfigToNative();
-                setOpen(false);
-                onAdded();
-              }}>
-              <ThemedText type="small">{app.label}</ThemedText>
-            </Pressable>
-          ))}
-        </ScrollView>
-      )}
-    </View>
-  );
-}
+const TABS: { key: FocusTab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'dashboard', label: 'Dashboard', icon: 'bar-chart-outline' },
+  { key: 'apps', label: 'Apps', icon: 'apps-outline' },
+  { key: 'history', label: 'History', icon: 'time-outline' },
+];
 
 export default function FocusScreen() {
+  const theme = useTheme();
+  const [tab, setTab] = useState<FocusTab>('dashboard');
   const [apps, setApps] = useState<FocusApp[]>([]);
   const [usage, setUsage] = useState<Record<string, number>>({});
+  const [sessions, setSessions] = useState<FocusSession[]>([]);
   const [streak, setStreak] = useState(0);
   const [focusModeActiveUntil, setFocusModeActiveUntil] = useState<number | null>(null);
   const overlayPermission = usePermissionStatus('overlay');
 
   const load = useCallback(async () => {
-    const [freshApps, freshUsage, freshStreak] = await Promise.all([
+    const [freshApps, freshUsage, freshStreak, freshSessions] = await Promise.all([
       pushFocusConfigToNative(),
       getUsageMinutesByPackage(),
       getFocusStreakDays(),
+      listFocusSessions(),
     ]);
     setApps(freshApps);
     setUsage(freshUsage);
     setStreak(freshStreak);
+    setSessions(freshSessions);
   }, []);
 
   useFocusEffect(
@@ -175,73 +86,49 @@ export default function FocusScreen() {
     [overlayPermission],
   );
 
+  const stopFocusMode = useCallback(() => {
+    AxonNative.stopFocusMode();
+    setFocusModeActiveUntil(null);
+  }, []);
+
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <ModuleTopBar title="Focus" accent={ModuleColors.focus} subtitle="Screen-time nudges and budgets" />
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <PermissionRow label="Draw over other apps" kind="overlay" />
-            <PermissionRow label="Accessibility service" kind="accessibility" />
-            <PermissionRow label="Usage access" kind="usageAccess" />
-          </ThemedView>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <ModuleTopBar title="Focus" accent={ModuleColors.focus} />
 
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <ThemedText type="micro" themeColor="textSecondary">
-              STREAK
-            </ThemedText>
-            <ThemedText type="display">{streak} days under budget</ThemedText>
-          </ThemedView>
+        <View style={styles.content}>
+          {tab === 'dashboard' && (
+            <DashboardTab
+              apps={apps}
+              usage={usage}
+              streak={streak}
+              focusModeActiveUntil={focusModeActiveUntil}
+              onStartFocusMode={startFocusMode}
+              onStopFocusMode={stopFocusMode}
+            />
+          )}
+          {tab === 'apps' && <AppsTab apps={apps} usage={usage} onChanged={load} />}
+          {tab === 'history' && <HistoryTab sessions={sessions} apps={apps} />}
+        </View>
 
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <ThemedText type="heading">Focus Mode</ThemedText>
-            {focusModeActiveUntil ? (
-              <View>
-                <ThemedText type="body" themeColor="textSecondary">
-                  Blocking distraction apps until{' '}
-                  {new Date(focusModeActiveUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        <View style={[styles.bottomBar, { borderTopColor: theme.border, backgroundColor: theme.background }]}>
+          {TABS.map((t) => {
+            const active = tab === t.key;
+            return (
+              <Pressable
+                key={t.key}
+                onPress={() => setTab(t.key)}
+                style={[styles.bottomBarItem, { borderColor: theme.border }, active && styles.bottomBarItemActive]}>
+                <Ionicons name={t.icon} size={20} color={active ? ModuleColors.focus : theme.textSecondary} />
+                <ThemedText
+                  type="micro"
+                  style={active ? { color: ModuleColors.focus, fontWeight: '600' } : { color: theme.textSecondary }}>
+                  {t.label}
                 </ThemedText>
-                <Pressable
-                  onPress={() => {
-                    AxonNative.stopFocusMode();
-                    setFocusModeActiveUntil(null);
-                  }}
-                  style={styles.stopFocusButton}>
-                  <ThemedText type="small">Stop early</ThemedText>
-                </Pressable>
-              </View>
-            ) : (
-              <View style={styles.presetRow}>
-                {FOCUS_MODE_PRESETS_MIN.map((minutes) => (
-                  <Pressable key={minutes} onPress={() => startFocusMode(minutes)} style={styles.presetButton}>
-                    <ThemedText type="small">{minutes}m</ThemedText>
-                  </Pressable>
-                ))}
-              </View>
-            )}
-          </ThemedView>
-
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <ThemedText type="heading" style={styles.sectionTitle}>
-              Distraction apps
-            </ThemedText>
-            {apps.length === 0 ? (
-              <ThemedText type="body" themeColor="textSecondary">
-                No distraction apps configured yet.
-              </ThemedText>
-            ) : (
-              apps.map((app) => (
-                <FocusAppRow
-                  key={app.package_name}
-                  app={app}
-                  usageMinutes={usage[app.package_name] ?? 0}
-                  onChanged={load}
-                />
-              ))
-            )}
-            <AddAppPicker onAdded={load} />
-          </ThemedView>
-        </ScrollView>
+              </Pressable>
+            );
+          })}
+        </View>
       </SafeAreaView>
     </ThemedView>
   );
@@ -250,56 +137,23 @@ export default function FocusScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
-  scrollContent: { padding: Spacing.four, gap: Spacing.three },
-  card: { borderRadius: Radius.large, padding: Spacing.three, gap: Spacing.two },
-  sectionTitle: { marginBottom: Spacing.one },
-  permissionRow: {
+  content: { flex: 1 },
+  bottomBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.one,
-  },
-  appRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: Spacing.two,
-    paddingVertical: Spacing.two,
-  },
-  appRowMain: { flex: 1, gap: Spacing.half },
-  budgetInput: {
-    width: 72,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-    borderRadius: Radius.small,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    textAlign: 'center',
-  },
-  addAppButton: {
-    paddingVertical: Spacing.two,
-  },
-  appPickerList: {
-    maxHeight: 220,
-  },
-  appPickerRow: {
-    paddingVertical: Spacing.two,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.08)',
+    padding: Spacing.two,
   },
-  presetRow: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-  },
-  presetButton: {
-    paddingHorizontal: Spacing.three,
+  bottomBarItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: Spacing.half,
     paddingVertical: Spacing.two,
-    borderRadius: Radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: Radius.medium,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  stopFocusButton: {
-    marginTop: Spacing.two,
-    alignSelf: 'flex-start',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
-    borderRadius: Radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+  bottomBarItemActive: {
+    backgroundColor: 'rgba(245,185,66,0.14)',
+    borderColor: 'rgba(245,185,66,0.4)',
   },
 });

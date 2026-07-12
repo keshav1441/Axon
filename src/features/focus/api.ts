@@ -57,3 +57,15 @@ export async function getFocusStreakDays(): Promise<number> {
   const res = await apiGet<{ streakDays: number }>('/api/focus/streak');
   return res.streakDays;
 }
+
+export type FocusSession = {
+  id: string;
+  appPackage: string;
+  startedAt: string;
+  endedAt: string | null;
+};
+
+export async function listFocusSessions(): Promise<FocusSession[]> {
+  const res = await apiGet<{ sessions: FocusSession[] }>('/api/focus');
+  return res.sessions;
+}
