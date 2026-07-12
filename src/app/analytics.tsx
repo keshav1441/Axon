@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,11 +9,13 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ModuleColors, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { listTransactions } from '@/features/money/api';
-import { listTasksWithSubtasks } from '@/features/tasks/api';
-import { listFocusSessions } from '@/features/focus/api';
+import { listTransactions, type TransactionRow } from '@/features/money/api';
+import { listTasksWithSubtasks, type TaskWithSubtasks } from '@/features/tasks/api';
+import { listFocusSessions, type FocusSession } from '@/features/focus/api';
 import { FOCUS_MODE_SESSION_PACKAGE } from '@/features/focus/focus-mode';
 import { formatRupees } from '@/features/money/format';
+
+const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 const MONTHS_BACK = 6;
 
@@ -79,9 +81,125 @@ function BarRow({
   );
 }
 
+type DayActivity = { day: number; date: Date; hasMoney: boolean; hasTask: boolean; hasFocus: boolean; isToday: boolean };
+
+function sameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function buildCalendarDays(
+  month: Date,
+  transactions: TransactionRow[],
+  tasks: TaskWithSubtasks[],
+  sessions: FocusSession[],
+): DayActivity[] {
+  const today = new Date();
+  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+  const days: DayActivity[] = [];
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(month.getFullYear(), month.getMonth(), day);
+    const hasMoney = transactions.some((t) => sameDay(new Date(t.occurredAt), date));
+    const hasTask = tasks.some((t) => t.done && sameDay(new Date(t.createdAt), date));
+    const hasFocus = sessions.some(
+      (s) => s.appPackage === FOCUS_MODE_SESSION_PACKAGE && s.endedAt && sameDay(new Date(s.startedAt), date),
+    );
+    days.push({ day, date, hasMoney, hasTask, hasFocus, isToday: sameDay(date, today) });
+  }
+  return days;
+}
+
+function MonthCalendar({
+  month,
+  days,
+  onPrevMonth,
+  onNextMonth,
+}: {
+  month: Date;
+  days: DayActivity[];
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
+}) {
+  const theme = useTheme();
+  const leadingBlanks = new Date(month.getFullYear(), month.getMonth(), 1).getDay();
+
+  return (
+    <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.border }]}>
+      <View style={styles.calendarHeader}>
+        <Pressable onPress={onPrevMonth} hitSlop={8}>
+          <Ionicons name="chevron-back" size={20} color={theme.textSecondary} />
+        </Pressable>
+        <ThemedText type="heading">{month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</ThemedText>
+        <Pressable onPress={onNextMonth} hitSlop={8}>
+          <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+        </Pressable>
+      </View>
+
+      <View style={styles.calendarWeekRow}>
+        {WEEKDAY_LABELS.map((label, i) => (
+          <ThemedText key={i} type="micro" themeColor="textSecondary" style={styles.calendarWeekLabel}>
+            {label}
+          </ThemedText>
+        ))}
+      </View>
+
+      <View style={styles.calendarGrid}>
+        {Array.from({ length: leadingBlanks }).map((_, i) => (
+          <View key={`blank-${i}`} style={styles.calendarCell} />
+        ))}
+        {days.map((d) => (
+          <View
+            key={d.day}
+            style={[
+              styles.calendarCell,
+              styles.calendarDayCell,
+              d.isToday && { borderColor: ModuleColors.home, borderWidth: 1.5 },
+            ]}>
+            <ThemedText type="micro" style={d.isToday ? { color: ModuleColors.home, fontWeight: '700' } : undefined}>
+              {d.day}
+            </ThemedText>
+            <View style={styles.calendarDotRow}>
+              {d.hasMoney && <View style={[styles.calendarDot, { backgroundColor: ModuleColors.money }]} />}
+              {d.hasTask && <View style={[styles.calendarDot, { backgroundColor: ModuleColors.tasks }]} />}
+              {d.hasFocus && <View style={[styles.calendarDot, { backgroundColor: ModuleColors.focus }]} />}
+            </View>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.calendarLegend}>
+        <View style={styles.calendarLegendItem}>
+          <View style={[styles.calendarDot, { backgroundColor: ModuleColors.money }]} />
+          <ThemedText type="micro" themeColor="textSecondary">
+            Expenses
+          </ThemedText>
+        </View>
+        <View style={styles.calendarLegendItem}>
+          <View style={[styles.calendarDot, { backgroundColor: ModuleColors.tasks }]} />
+          <ThemedText type="micro" themeColor="textSecondary">
+            Task done
+          </ThemedText>
+        </View>
+        <View style={styles.calendarLegendItem}>
+          <View style={[styles.calendarDot, { backgroundColor: ModuleColors.focus }]} />
+          <ThemedText type="micro" themeColor="textSecondary">
+            Focus session
+          </ThemedText>
+        </View>
+      </View>
+    </ThemedView>
+  );
+}
+
 export default function AnalyticsScreen() {
   const theme = useTheme();
   const [months, setMonths] = useState<MonthBucket[]>(buildMonths());
+  const [rawTransactions, setRawTransactions] = useState<TransactionRow[]>([]);
+  const [rawTasks, setRawTasks] = useState<TaskWithSubtasks[]>([]);
+  const [rawSessions, setRawSessions] = useState<FocusSession[]>([]);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
 
   const load = useCallback(async () => {
     const [transactions, tasks, sessions] = await Promise.all([
@@ -89,6 +207,9 @@ export default function AnalyticsScreen() {
       listTasksWithSubtasks(),
       listFocusSessions(),
     ]);
+    setRawTransactions(transactions);
+    setRawTasks(tasks);
+    setRawSessions(sessions);
 
     const buckets = buildMonths();
     const byKey = new Map(buckets.map((b) => [b.key, b]));
@@ -125,6 +246,19 @@ export default function AnalyticsScreen() {
       load();
     }, [load]),
   );
+
+  const calendarDays = useMemo(
+    () => buildCalendarDays(calendarMonth, rawTransactions, rawTasks, rawSessions),
+    [calendarMonth, rawTransactions, rawTasks, rawSessions],
+  );
+
+  const goToPrevMonth = useCallback(() => {
+    setCalendarMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1));
+  }, []);
+
+  const goToNextMonth = useCallback(() => {
+    setCalendarMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1));
+  }, []);
 
   const maxSpend = Math.max(...months.map((m) => m.spend), 1);
   const maxIncome = Math.max(...months.map((m) => m.income), 1);
@@ -180,6 +314,8 @@ export default function AnalyticsScreen() {
               </ThemedText>
             </ThemedView>
           </View>
+
+          <MonthCalendar month={calendarMonth} days={calendarDays} onPrevMonth={goToPrevMonth} onNextMonth={goToNextMonth} />
 
           <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.border }]}>
             <ThemedText type="heading" style={styles.sectionTitle}>
@@ -263,4 +399,14 @@ const styles = StyleSheet.create({
   barTrack: { flex: 1, height: 8, borderRadius: 4, overflow: 'hidden' },
   barFill: { height: '100%', borderRadius: 4 },
   barValue: { width: 64, textAlign: 'right' },
+  calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  calendarWeekRow: { flexDirection: 'row' },
+  calendarWeekLabel: { flex: 1, textAlign: 'center' },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calendarCell: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: Spacing.one },
+  calendarDayCell: { borderRadius: Radius.small, borderWidth: StyleSheet.hairlineWidth, borderColor: 'transparent', gap: Spacing.half },
+  calendarDotRow: { flexDirection: 'row', gap: 2, height: 6 },
+  calendarDot: { width: 5, height: 5, borderRadius: 3 },
+  calendarLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.three, marginTop: Spacing.two },
+  calendarLegendItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
 });
