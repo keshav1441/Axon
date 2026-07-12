@@ -177,6 +177,7 @@ class OverlayForegroundService : Service() {
 
   private fun showFocusBlock() {
     removeAllViews()
+    tickTimer?.cancel()
     val view = buildFocusBlockView()
     val params = overlayParams(width = WindowManager.LayoutParams.MATCH_PARENT)
     params.gravity = Gravity.CENTER
@@ -255,22 +256,46 @@ class OverlayForegroundService : Service() {
     return root
   }
 
+  private val focusQuotes = listOf(
+    "Discipline is choosing between what you want now and what you want most.",
+    "The successful warrior is the average person with laser-like focus.",
+    "You don't have to see the whole staircase, just take the first step.",
+    "Small disciplines repeated with consistency lead to great achievements.",
+    "Focus on being productive instead of busy.",
+    "What you do today can improve all your tomorrows.",
+    "Almost everything will work again if you unplug it for a few minutes, including you.",
+  )
+
+  /** No dismiss button by design - leaving this app (home/back) or reopening Axon to stop Focus Mode are the only exits. */
   private fun buildFocusBlockView(): View {
     val root = FrameLayout(this).apply {
-      setBackgroundColor(Color.parseColor("#F2000000"))
+      setBackgroundColor(Color.parseColor("#F5000000"))
     }
-    val label = TextView(this).apply {
-      text = "Focus Mode is on.\nThis app is blocked for now."
-      setTextColor(Color.WHITE)
-      textSize = 20f
-      gravity = Gravity.CENTER
+    val card = LinearLayout(this).apply {
+      orientation = LinearLayout.VERTICAL
+      setPadding(56, 56, 56, 56)
       layoutParams = FrameLayout.LayoutParams(
         FrameLayout.LayoutParams.WRAP_CONTENT,
         FrameLayout.LayoutParams.WRAP_CONTENT,
         Gravity.CENTER,
       )
     }
-    root.addView(label)
+    val title = TextView(this).apply {
+      text = "Focus Mode is on"
+      setTextColor(Color.WHITE)
+      textSize = 22f
+      gravity = Gravity.CENTER
+      setPadding(0, 0, 0, 32)
+    }
+    val quote = TextView(this).apply {
+      text = "“${focusQuotes.random()}”"
+      setTextColor(Color.parseColor("#D0D0D0"))
+      textSize = 16f
+      gravity = Gravity.CENTER
+    }
+    card.addView(title)
+    card.addView(quote)
+    root.addView(card)
     return root
   }
 

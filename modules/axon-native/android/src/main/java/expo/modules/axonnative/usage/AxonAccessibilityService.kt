@@ -41,7 +41,13 @@ class AxonAccessibilityService : AccessibilityService() {
       mapOf("packageName" to packageName, "timestampMs" to now),
     )
 
-    if (packageName in AxonBridge.distractionPackages) {
+    if (AxonBridge.focusModeActive) {
+      if (packageName in AxonBridge.distractionPackages) {
+        OverlayForegroundService.startFocusBlock(applicationContext)
+      } else {
+        OverlayForegroundService.stop(applicationContext)
+      }
+    } else if (packageName in AxonBridge.distractionPackages) {
       OverlayForegroundService.start(applicationContext, packageName)
     } else {
       OverlayForegroundService.stop(applicationContext)

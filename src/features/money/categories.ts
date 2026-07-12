@@ -11,7 +11,9 @@ export const CATEGORIES = [
   'Uncategorized',
 ] as const;
 
-export type Category = (typeof CATEGORIES)[number];
+export type BuiltInCategory = (typeof CATEGORIES)[number];
+/** Widened to string - users can add custom categories beyond the built-in list. */
+export type Category = string;
 
 /** Built-in default keyword -> category map. User corrections override this via the category_rules table. */
 export const DEFAULT_KEYWORD_RULES: Record<string, Category> = {

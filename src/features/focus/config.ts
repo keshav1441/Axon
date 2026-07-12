@@ -1,4 +1,4 @@
-import { listFocusApps, type FocusApp } from '@/db/focus';
+import { listFocusApps, type FocusApp } from '@/features/focus/api';
 import { AxonNative } from '@/native/axon-native';
 
 export const DEFAULT_NUDGE_INTERVAL_MINUTES = 5;

@@ -1,4 +1,4 @@
-import { pgTable, text, integer, numeric, timestamp, index, unique } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, numeric, timestamp, index, unique, primaryKey } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -21,20 +21,37 @@ export const sessions = pgTable('sessions', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const bankAccounts = pgTable('bank_accounts', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
+  bankName: text('bank_name').notNull(),
+  lastDigits: text('last_digits').notNull(),
+  cardType: text('card_type').notNull(),
+  label: text('label'),
+  limitAmount: numeric('limit_amount', { precision: 12, scale: 2 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  userIdx: index('bank_accounts_user_idx').on(t.userId),
+}));
+
 export const transactions = pgTable('transactions', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id),
+  bankAccountId: text('bank_account_id').references(() => bankAccounts.id),
   amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
   direction: text('direction').notNull(),
   merchant: text('merchant'),
   category: text('category'),
+  accountTail: text('account_tail'),
   source: text('source').notNull(),
   occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
   dedupRef: text('dedup_ref').notNull(),
+  dedupRefHash: text('dedup_ref_hash'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   userOccurredIdx: index('transactions_user_occurred_idx').on(t.userId, t.occurredAt),
   dedupRefIdx: index('transactions_dedup_ref_idx').on(t.dedupRef),
+  dedupRefHashIdx: index('transactions_dedup_ref_hash_idx').on(t.dedupRefHash),
 }));
 
 export const tasks = pgTable('tasks', {
@@ -64,3 +81,20 @@ export const authAttempts = pgTable('auth_attempts', {
   count: integer('count').notNull(),
   windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
 });
+
+export const focusApps = pgTable('focus_apps', {
+  userId: text('user_id').notNull().references(() => users.id),
+  packageName: text('package_name').notNull(),
+  label: text('label').notNull(),
+  budgetMinutes: integer('budget_minutes'),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.userId, t.packageName] }),
+}));
+
+export const categoryRules = pgTable('category_rules', {
+  userId: text('user_id').notNull().references(() => users.id),
+  keyword: text('keyword').notNull(),
+  category: text('category').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.userId, t.keyword] }),
+}));

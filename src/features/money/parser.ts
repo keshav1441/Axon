@@ -3,6 +3,7 @@ export type ParsedTransaction = {
   direction: 'debit' | 'credit';
   merchant: string | null;
   accountTail: string | null;
+  bankName: string | null;
   occurredAt: number;
   dedupeKey: string;
   source: 'sms' | 'notification';
@@ -23,6 +24,7 @@ const OTP_RE = /\botp\b|one time password/i;
 
 const MERCHANT_PATTERNS: RegExp[] = [
   /\bat\s+([A-Za-z0-9][A-Za-z0-9 &.\-]{2,29})/i,
+  /\btowards\s+([A-Za-z0-9][A-Za-z0-9 &.\-@]{2,39})/i,
   /\bto\s+([A-Za-z0-9][A-Za-z0-9 &.\-@]{2,39})/i,
   /\bfrom\s+([A-Za-z0-9][A-Za-z0-9 &.\-@]{2,39})/i,
   /vpa\s+([\w.\-]+@[\w.\-]+)/i,
@@ -32,6 +34,21 @@ function extractMerchant(body: string): string | null {
   for (const pattern of MERCHANT_PATTERNS) {
     const match = body.match(pattern);
     if (match) return match[1].trim().replace(/\s{2,}/g, ' ');
+  }
+  return null;
+}
+
+const KNOWN_BANKS = [
+  'ICICI', 'HDFC', 'SBI', 'State Bank', 'Axis', 'Kotak', 'PNB', 'Punjab National',
+  'Bank of Baroda', 'BOB', 'Canara', 'Union Bank', 'IDFC', 'IndusInd', 'Yes Bank',
+  'RBL', 'IDBI', 'Federal Bank', 'Bank of India', 'Central Bank', 'Indian Bank',
+  'UCO Bank', 'Bandhan', 'AU Small Finance', 'Paytm Payments',
+];
+
+function extractBankName(body: string): string | null {
+  const lower = body.toLowerCase();
+  for (const bank of KNOWN_BANKS) {
+    if (lower.includes(bank.toLowerCase())) return bank;
   }
   return null;
 }
@@ -51,13 +68,18 @@ export function parseTransactionText(input: RawInput): ParsedTransaction | null 
   const amount = Number(amountMatch[1].replace(/,/g, ''));
   if (!Number.isFinite(amount) || amount <= 0) return null;
 
-  const isDebit = DEBIT_RE.test(body);
-  const isCredit = CREDIT_RE.test(body);
-  if (isDebit === isCredit) return null; // neither or ambiguous both - skip
-  const direction: ParsedTransaction['direction'] = isDebit ? 'debit' : 'credit';
+  const debitMatch = body.match(DEBIT_RE);
+  const creditMatch = body.match(CREDIT_RE);
+  if (!debitMatch && !creditMatch) return null;
+  // Common UPI pattern has both keywords ("debited A/c... and credited to
+  // MERCHANT") - whichever comes first describes what happened to the
+  // user's own account, so it wins.
+  const direction: ParsedTransaction['direction'] =
+    debitMatch && (!creditMatch || debitMatch.index! <= creditMatch.index!) ? 'debit' : 'credit';
 
   const merchant = extractMerchant(body);
   const accountTail = body.match(ACCOUNT_TAIL_RE)?.[1] ?? null;
+  const bankName = extractBankName(body);
   const refMatch = body.match(REF_RE)?.[1];
 
   const dedupeKey = refMatch
@@ -69,6 +91,7 @@ export function parseTransactionText(input: RawInput): ParsedTransaction | null 
     direction,
     merchant,
     accountTail,
+    bankName,
     occurredAt: timestampMs,
     dedupeKey,
     source,

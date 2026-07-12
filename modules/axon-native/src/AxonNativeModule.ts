@@ -5,6 +5,7 @@ import type { AxonNativeModuleEvents } from './AxonNative.types';
 declare class AxonNativeModule extends NativeModule<AxonNativeModuleEvents> {
   hasSmsPermission(): boolean;
   requestSmsPermission(): void;
+  getRecentSms(sinceMs: number): Promise<{ body: string; timestampMs: number }[]>;
 
   hasNotificationAccess(): boolean;
   openNotificationAccessSettings(): void;
