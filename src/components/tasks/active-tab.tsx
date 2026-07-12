@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { TaskCard } from '@/components/tasks/task-card';
@@ -20,8 +20,15 @@ export const ActiveTab = forwardRef<
     onChanged: () => void;
     onToggleTask: (taskId: string, done: boolean) => void;
     onToggleSubtask: (taskId: string, subtaskId: string, done: boolean) => void;
+    onRemoveTask: (taskId: string) => void;
+    onRemoveSubtask: (taskId: string, subtaskId: string) => void;
+    refreshing: boolean;
+    onRefresh: () => void;
   }
->(function ActiveTab({ tasks, onChanged, onToggleTask, onToggleSubtask }, ref) {
+>(function ActiveTab(
+  { tasks, onChanged, onToggleTask, onToggleSubtask, onRemoveTask, onRemoveSubtask, refreshing, onRefresh },
+  ref,
+) {
     const theme = useTheme();
     const [manualText, setManualText] = useState('');
     const [creating, setCreating] = useState(false);
@@ -58,7 +65,9 @@ export const ActiveTab = forwardRef<
     const open = tasks.filter((t) => !t.done);
 
     return (
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ModuleColors.tasks} />}>
         <ThemedView type="backgroundElement" style={[styles.addCard, { borderColor: theme.border }]}>
           <TextInput
             ref={inputRef}
@@ -93,6 +102,8 @@ export const ActiveTab = forwardRef<
               onChanged={onChanged}
               onToggleTask={onToggleTask}
               onToggleSubtask={onToggleSubtask}
+              onRemoveTask={onRemoveTask}
+              onRemoveSubtask={onRemoveSubtask}
               variant="active"
             />
           ))

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -10,6 +10,7 @@ import { ModuleColors, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useThemePreference, type ThemePreference } from '@/hooks/use-theme-preference';
 import { getCurrentUser, logout } from '@/features/auth/api';
+import { clearData, type ClearDataScope } from '@/features/data/api';
 import type { StoredUser } from '@/api/tokens';
 
 const THEME_OPTIONS: { key: ThemePreference; label: string }[] = [
@@ -18,11 +19,24 @@ const THEME_OPTIONS: { key: ThemePreference; label: string }[] = [
   { key: 'system', label: 'System' },
 ];
 
+const CLEAR_OPTIONS: {
+  scope: ClearDataScope;
+  label: string;
+  description: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}[] = [
+  { scope: 'money', label: 'Clear expenses', description: 'Deletes all transactions and learned categories.', icon: 'wallet-outline' },
+  { scope: 'tasks', label: 'Clear tasks', description: 'Deletes all tasks and subtasks.', icon: 'checkmark-done-outline' },
+  { scope: 'focus', label: 'Clear focus history', description: 'Deletes all recorded focus sessions.', icon: 'time-outline' },
+  { scope: 'all', label: 'Clear everything', description: 'Deletes all expenses, tasks, and focus history.', icon: 'trash-outline' },
+];
+
 export default function SettingsScreen() {
   const theme = useTheme();
   const { preference, setPreference } = useThemePreference();
   const [user, setUser] = useState<StoredUser | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [clearing, setClearing] = useState<ClearDataScope | null>(null);
 
   useEffect(() => {
     getCurrentUser().then(setUser);
@@ -46,12 +60,33 @@ export default function SettingsScreen() {
     ]);
   }, []);
 
+  const confirmClear = useCallback((opt: (typeof CLEAR_OPTIONS)[number]) => {
+    Alert.alert(opt.label, `${opt.description} This can't be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear',
+        style: 'destructive',
+        onPress: async () => {
+          setClearing(opt.scope);
+          try {
+            await clearData(opt.scope);
+            Alert.alert('Done', `${opt.label} completed.`);
+          } catch (err) {
+            Alert.alert('Could not clear data', String(err));
+          } finally {
+            setClearing(null);
+          }
+        },
+      },
+    ]);
+  }, []);
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ModuleTopBar title="Settings" accent={ModuleColors.home} />
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <ThemedView type="backgroundElement" style={styles.card}>
+          <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.border }]}>
             <ThemedText type="micro" themeColor="textSecondary">
               PROFILE
             </ThemedText>
@@ -78,7 +113,7 @@ export default function SettingsScreen() {
             </Pressable>
           </ThemedView>
 
-          <ThemedView type="backgroundElement" style={styles.card}>
+          <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.border }]}>
             <ThemedText type="micro" themeColor="textSecondary">
               APPEARANCE
             </ThemedText>
@@ -99,6 +134,36 @@ export default function SettingsScreen() {
               ))}
             </View>
           </ThemedView>
+
+          <ThemedView type="backgroundElement" style={[styles.card, styles.dangerCard, { borderColor: 'rgba(239,68,68,0.35)' }]}>
+            <ThemedText type="micro" style={{ color: theme.danger }}>
+              CLEAR DATA
+            </ThemedText>
+            {CLEAR_OPTIONS.map((opt, i) => (
+              <Pressable
+                key={opt.scope}
+                onPress={() => confirmClear(opt)}
+                disabled={clearing !== null}
+                style={[styles.clearRow, i > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
+                <Ionicons name={opt.icon} size={18} color={theme.danger} />
+                <View style={styles.clearMain}>
+                  <ThemedText type="body">{opt.label}</ThemedText>
+                  <ThemedText type="micro" themeColor="textSecondary">
+                    {opt.description}
+                  </ThemedText>
+                </View>
+                {clearing === opt.scope ? (
+                  <ActivityIndicator size="small" color={theme.danger} />
+                ) : (
+                  <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+                )}
+              </Pressable>
+            ))}
+          </ThemedView>
+
+          <ThemedText type="micro" themeColor="textSecondary" style={styles.footer}>
+            Axon v1.0.0
+          </ThemedText>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -109,7 +174,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
   scrollContent: { padding: Spacing.four, gap: Spacing.three },
-  card: { borderRadius: Radius.large, padding: Spacing.three, gap: Spacing.two },
+  card: { borderRadius: Radius.large, borderWidth: StyleSheet.hairlineWidth, padding: Spacing.three, gap: Spacing.two },
+  dangerCard: { gap: Spacing.one },
   themeRow: { flexDirection: 'row', gap: Spacing.two },
   themeChip: {
     paddingHorizontal: Spacing.three,
@@ -135,4 +201,12 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     paddingTop: Spacing.two,
   },
+  clearRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+  },
+  clearMain: { flex: 1, gap: Spacing.half },
+  footer: { textAlign: 'center', marginTop: Spacing.two },
 });

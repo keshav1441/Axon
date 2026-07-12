@@ -179,7 +179,7 @@ class OverlayForegroundService : Service() {
     removeAllViews()
     tickTimer?.cancel()
     val view = buildFocusBlockView()
-    val params = overlayParams(width = WindowManager.LayoutParams.MATCH_PARENT)
+    val params = overlayParams(width = WindowManager.LayoutParams.MATCH_PARENT, height = WindowManager.LayoutParams.MATCH_PARENT)
     params.gravity = Gravity.CENTER
     pillView = view
     windowManager.addView(view, params)
@@ -301,9 +301,9 @@ class OverlayForegroundService : Service() {
 
   // --- Window plumbing -----------------------------------------------------
 
-  private fun overlayParams(width: Int) = WindowManager.LayoutParams(
+  private fun overlayParams(width: Int, height: Int = WindowManager.LayoutParams.WRAP_CONTENT) = WindowManager.LayoutParams(
     width,
-    WindowManager.LayoutParams.WRAP_CONTENT,
+    height,
     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
     android.graphics.PixelFormat.TRANSLUCENT,

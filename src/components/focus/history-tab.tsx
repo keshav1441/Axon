@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
@@ -16,7 +16,17 @@ function dayKey(iso: string): string {
   return new Date(iso).toDateString();
 }
 
-export function HistoryTab({ sessions, apps }: { sessions: FocusSession[]; apps: FocusApp[] }) {
+export function HistoryTab({
+  sessions,
+  apps,
+  refreshing,
+  onRefresh,
+}: {
+  sessions: FocusSession[];
+  apps: FocusApp[];
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
   const theme = useTheme();
 
   const groups = useMemo(() => {
@@ -34,7 +44,9 @@ export function HistoryTab({ sessions, apps }: { sessions: FocusSession[]; apps:
   const today = new Date().toDateString();
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ModuleColors.focus} />}>
       {groups.length === 0 ? (
         <ThemedView type="backgroundElement" style={[styles.emptyCard, { borderColor: theme.border }]}>
           <Ionicons name="time-outline" size={32} color={theme.textSecondary} />

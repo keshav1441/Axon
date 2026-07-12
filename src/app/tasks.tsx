@@ -12,7 +12,14 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ModuleColors, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { listTasksWithSubtasks, toggleSubtaskDone, toggleTaskDone, type TaskWithSubtasks } from '@/features/tasks/api';
+import {
+  deleteSubtask,
+  deleteTask,
+  listTasksWithSubtasks,
+  toggleSubtaskDone,
+  toggleTaskDone,
+  type TaskWithSubtasks,
+} from '@/features/tasks/api';
 
 type TasksTab = 'dashboard' | 'active' | 'completed';
 
@@ -83,6 +90,28 @@ export default function TasksScreen() {
     if (allDone) toggleTaskDone(taskId, true).catch(() => {});
   }, []);
 
+  const removeTask = useCallback((taskId: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    deleteTask(taskId).catch(() => {});
+  }, []);
+
+  const removeSubtask = useCallback((taskId: string, subtaskId: string) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, subtasks: t.subtasks.filter((s) => s.id !== subtaskId) } : t)),
+    );
+    deleteSubtask(subtaskId).catch(() => {});
+  }, []);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load]);
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -99,10 +128,23 @@ export default function TasksScreen() {
               onChanged={load}
               onToggleTask={toggleTask}
               onToggleSubtask={toggleSubtask}
+              onRemoveTask={removeTask}
+              onRemoveSubtask={removeSubtask}
+              refreshing={refreshing}
+              onRefresh={onRefresh}
             />
           )}
           {tab === 'completed' && (
-            <CompletedTab tasks={tasks} onChanged={load} onToggleTask={toggleTask} onToggleSubtask={toggleSubtask} />
+            <CompletedTab
+              tasks={tasks}
+              onChanged={load}
+              onToggleTask={toggleTask}
+              onToggleSubtask={toggleSubtask}
+              onRemoveTask={removeTask}
+              onRemoveSubtask={removeSubtask}
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+            />
           )}
         </View>
 

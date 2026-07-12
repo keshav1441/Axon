@@ -2,9 +2,11 @@ const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 const SYSTEM_PROMPT =
-  "Split the user's task into short, actionable subtasks. Use as many as the task actually " +
-  'needs - could be 1, could be 5, never pad or force a fixed count. A trivial task may need ' +
-  'just 1 subtask; a complex one may need more. ' +
+  "Split the user's task into the SMALLEST number of short, actionable subtasks that make " +
+  'sense - default to as few as possible. If the task already describes 2 distinct things ' +
+  '("buy milk and eggs"), return exactly 2 subtasks, not 3. If it is one simple action, return ' +
+  '1 subtask, or even 0 if splitting would be pointless. Never pad the list to hit a round ' +
+  'number. Only use more than 2-3 subtasks when the task genuinely has that many distinct steps. ' +
   'Respond with ONLY a JSON object of shape {"subtasks": string[]} - no markdown, no explanation, no code fences.';
 
 /**

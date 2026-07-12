@@ -91,6 +91,16 @@ export default function FocusScreen() {
     setFocusModeActiveUntil(null);
   }, []);
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load]);
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -108,7 +118,9 @@ export default function FocusScreen() {
             />
           )}
           {tab === 'apps' && <AppsTab apps={apps} usage={usage} onChanged={load} />}
-          {tab === 'history' && <HistoryTab sessions={sessions} apps={apps} />}
+          {tab === 'history' && (
+            <HistoryTab sessions={sessions} apps={apps} refreshing={refreshing} onRefresh={onRefresh} />
+          )}
         </View>
 
         <View style={[styles.bottomBar, { borderTopColor: theme.border, backgroundColor: theme.background }]}>
@@ -119,9 +131,9 @@ export default function FocusScreen() {
                 key={t.key}
                 onPress={() => setTab(t.key)}
                 style={[styles.bottomBarItem, { borderColor: theme.border }, active && styles.bottomBarItemActive]}>
-                <Ionicons name={t.icon} size={20} color={active ? ModuleColors.focus : theme.textSecondary} />
+                <Ionicons name={t.icon} size={24} color={active ? ModuleColors.focus : theme.textSecondary} />
                 <ThemedText
-                  type="micro"
+                  type="small"
                   style={active ? { color: ModuleColors.focus, fontWeight: '600' } : { color: theme.textSecondary }}>
                   {t.label}
                 </ThemedText>
@@ -142,13 +154,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.two,
     borderTopWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.two,
+    padding: Spacing.three,
   },
   bottomBarItem: {
     flex: 1,
     alignItems: 'center',
-    gap: Spacing.half,
-    paddingVertical: Spacing.two,
+    gap: Spacing.one,
+    paddingVertical: Spacing.three,
     borderRadius: Radius.medium,
     borderWidth: StyleSheet.hairlineWidth,
   },

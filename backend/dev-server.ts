@@ -12,6 +12,7 @@ import focus from './api/focus/index';
 import focusApps from './api/focus/apps';
 import focusAction from './api/focus/[action]';
 import dashboardSummary from './api/dashboard/summary';
+import dataClear from './api/data/clear';
 
 type Handler = (req: VercelRequest, res: VercelResponse) => unknown;
 
@@ -35,6 +36,7 @@ mount('/api/focus', focus);
 mount('/api/focus/apps', focusApps);
 mount('/api/focus/:action', focusAction);
 mount('/api/dashboard/summary', dashboardSummary);
+mount('/api/data/clear', dataClear);
 
 const port = Number(process.env.PORT) || 3000;
 app.listen(port, () => {

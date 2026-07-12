@@ -50,9 +50,9 @@ export default function MoneyScreen() {
                   { borderColor: theme.border },
                   active && styles.bottomBarItemActive,
                 ]}>
-                <Ionicons name={t.icon} size={20} color={active ? ModuleColors.money : theme.textSecondary} />
+                <Ionicons name={t.icon} size={24} color={active ? ModuleColors.money : theme.textSecondary} />
                 <ThemedText
-                  type="micro"
+                  type="small"
                   style={active ? { color: ModuleColors.money, fontWeight: '600' } : { color: theme.textSecondary }}>
                   {t.label}
                 </ThemedText>
@@ -73,13 +73,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.two,
     borderTopWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.two,
+    padding: Spacing.three,
   },
   bottomBarItem: {
     flex: 1,
     alignItems: 'center',
-    gap: Spacing.half,
-    paddingVertical: Spacing.two,
+    gap: Spacing.one,
+    paddingVertical: Spacing.three,
     borderRadius: Radius.medium,
     borderWidth: StyleSheet.hairlineWidth,
   },

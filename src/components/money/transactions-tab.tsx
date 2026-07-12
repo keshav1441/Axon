@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -419,12 +419,14 @@ function AddTransactionForm({
 }
 
 export function TransactionsTab() {
+  const theme = useTheme();
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [hiddenDefaults, setHiddenDefaults] = useState<string[]>([]);
   const [triageQueue, setTriageQueue] = useState<TransactionRow[] | null>(null);
   const [editingTx, setEditingTx] = useState<TransactionRow | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const categories = useMemo(() => {
     const defaults = ASSIGNABLE_DEFAULTS.filter((c) => !hiddenDefaults.includes(c));
@@ -478,9 +480,21 @@ export function TransactionsTab() {
     }
   }, []);
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load]);
+
   return (
     <>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ModuleColors.money} />}>
+
         <ThemedView type="backgroundElement" style={styles.card}>
           <AddTransactionForm accounts={accounts} onAdded={load} onBankAdded={load} />
         </ThemedView>

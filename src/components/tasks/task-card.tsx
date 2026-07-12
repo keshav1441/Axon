@@ -6,14 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ModuleColors, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import {
-  addSubtasks,
-  deleteSubtask,
-  deleteTask,
-  setTaskNagSchedule,
-  updateSubtaskTitle,
-  type TaskWithSubtasks,
-} from '@/features/tasks/api';
+import { addSubtasks, setTaskNagSchedule, updateSubtaskTitle, type TaskWithSubtasks } from '@/features/tasks/api';
 import { cancelNag, ensureNotificationPermission, scheduleNag } from '@/features/tasks/nagging';
 
 const NAG_PRESETS_MIN = [0, 30, 60, 120];
@@ -22,10 +15,12 @@ function SubtaskRow({
   subtask,
   onChanged,
   onToggle,
+  onRemove,
 }: {
   subtask: TaskWithSubtasks['subtasks'][number];
   onChanged: () => void;
   onToggle: (subtaskId: string, done: boolean) => void;
+  onRemove: (subtaskId: string) => void;
 }) {
   const theme = useTheme();
   const [editing, setEditing] = useState(false);
@@ -67,7 +62,7 @@ function SubtaskRow({
           </ThemedText>
         </Pressable>
       )}
-      <Pressable onPress={() => deleteSubtask(subtask.id).then(onChanged)} hitSlop={10}>
+      <Pressable onPress={() => onRemove(subtask.id)} hitSlop={10}>
         <Ionicons name="close" size={18} color={theme.textSecondary} />
       </Pressable>
     </View>
@@ -114,13 +109,18 @@ function AddSubtaskRow({ taskId, onChanged }: { taskId: string; onChanged: () =>
         value={text}
         onChangeText={setText}
         onSubmitEditing={commit}
-        onBlur={commit}
         autoFocus
         placeholder="Subtask title"
         placeholderTextColor={theme.textSecondary}
-        style={[styles.subtaskInput, { color: theme.text }]}
+        style={[styles.subtaskInput, styles.addSubtaskInput, { color: theme.text, borderColor: theme.border }]}
         editable={!saving}
       />
+      <Pressable
+        onPress={commit}
+        disabled={saving || !text.trim()}
+        style={[styles.addSubtaskButton, (saving || !text.trim()) && { opacity: 0.5 }]}>
+        <Ionicons name="checkmark" size={18} color="#1A1030" />
+      </Pressable>
     </View>
   );
 }
@@ -130,12 +130,16 @@ export function TaskCard({
   onChanged,
   onToggleTask,
   onToggleSubtask,
+  onRemoveTask,
+  onRemoveSubtask,
   variant = 'active',
 }: {
   task: TaskWithSubtasks;
   onChanged: () => void;
   onToggleTask: (taskId: string, done: boolean) => void;
   onToggleSubtask: (taskId: string, subtaskId: string, done: boolean) => void;
+  onRemoveTask: (taskId: string) => void;
+  onRemoveSubtask: (taskId: string, subtaskId: string) => void;
   variant?: 'active' | 'completed';
 }) {
   const theme = useTheme();
@@ -176,6 +180,11 @@ export function TaskCard({
     [task.id, onToggleSubtask],
   );
 
+  const subtaskRemoveHandler = useCallback(
+    (subtaskId: string) => onRemoveSubtask(task.id, subtaskId),
+    [task.id, onRemoveSubtask],
+  );
+
   return (
     <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.border }]}>
       <View style={styles.headerRow}>
@@ -193,7 +202,7 @@ export function TaskCard({
           numberOfLines={2}>
           {task.title}
         </ThemedText>
-        <Pressable onPress={() => deleteTask(task.id).then(onChanged)} hitSlop={10}>
+        <Pressable onPress={() => onRemoveTask(task.id)} hitSlop={10}>
           <Ionicons name="trash-outline" size={19} color={theme.textSecondary} />
         </Pressable>
       </View>
@@ -210,7 +219,13 @@ export function TaskCard({
       )}
 
       {task.subtasks.map((s) => (
-        <SubtaskRow key={s.id} subtask={s} onChanged={onChanged} onToggle={subtaskRowHandler} />
+        <SubtaskRow
+          key={s.id}
+          subtask={s}
+          onChanged={onChanged}
+          onToggle={subtaskRowHandler}
+          onRemove={subtaskRemoveHandler}
+        />
       ))}
 
       {variant === 'active' && (
@@ -220,7 +235,7 @@ export function TaskCard({
           <Pressable style={styles.nagToggle} onPress={() => setNagOpen((v) => !v)}>
             <Ionicons name="alarm-outline" size={16} color={theme.textSecondary} />
             <ThemedText type="small" themeColor="textSecondary">
-              {task.nag_interval_minutes ? `Nag every ${task.nag_interval_minutes}m` : 'Set a nag reminder'}
+              {task.nag_interval_minutes ? `Reminder every ${task.nag_interval_minutes}m` : 'Set a reminder'}
             </ThemedText>
             <Ionicons name={nagOpen ? 'chevron-up' : 'chevron-down'} size={14} color={theme.textSecondary} />
           </Pressable>
@@ -301,7 +316,21 @@ const styles = StyleSheet.create({
   addSubtaskRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing.two,
     paddingLeft: Spacing.two,
+  },
+  addSubtaskInput: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.medium,
+    paddingHorizontal: Spacing.three,
+  },
+  addSubtaskButton: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.pill,
+    backgroundColor: ModuleColors.tasks,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   nagToggle: {
     flexDirection: 'row',
