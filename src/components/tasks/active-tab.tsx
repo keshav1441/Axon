@@ -13,8 +13,15 @@ import { useVoiceCapture } from '@/features/tasks/use-voice-capture';
 
 export type ActiveTabHandle = { focusInput: () => void };
 
-export const ActiveTab = forwardRef<ActiveTabHandle, { tasks: TaskWithSubtasks[]; onChanged: () => void }>(
-  function ActiveTab({ tasks, onChanged }, ref) {
+export const ActiveTab = forwardRef<
+  ActiveTabHandle,
+  {
+    tasks: TaskWithSubtasks[];
+    onChanged: () => void;
+    onToggleTask: (taskId: string, done: boolean) => void;
+    onToggleSubtask: (taskId: string, subtaskId: string, done: boolean) => void;
+  }
+>(function ActiveTab({ tasks, onChanged, onToggleTask, onToggleSubtask }, ref) {
     const theme = useTheme();
     const [manualText, setManualText] = useState('');
     const [creating, setCreating] = useState(false);
@@ -62,11 +69,11 @@ export const ActiveTab = forwardRef<ActiveTabHandle, { tasks: TaskWithSubtasks[]
             placeholderTextColor={theme.textSecondary}
             style={[styles.addInput, { color: theme.text }]}
           />
-          <Pressable onPress={start} disabled={creating} hitSlop={6}>
+          <Pressable onPress={start} disabled={creating} hitSlop={10}>
             {creating ? (
-              <Ionicons name="hourglass-outline" size={22} color={theme.textSecondary} />
+              <Ionicons name="hourglass-outline" size={26} color={theme.textSecondary} />
             ) : (
-              <Ionicons name={listening ? 'mic' : 'mic-outline'} size={22} color={ModuleColors.tasks} />
+              <Ionicons name={listening ? 'mic' : 'mic-outline'} size={26} color={ModuleColors.tasks} />
             )}
           </Pressable>
         </ThemedView>
@@ -79,7 +86,16 @@ export const ActiveTab = forwardRef<ActiveTabHandle, { tasks: TaskWithSubtasks[]
             </ThemedText>
           </ThemedView>
         ) : (
-          open.map((task) => <TaskCard key={task.id} task={task} onChanged={onChanged} variant="active" />)
+          open.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              onChanged={onChanged}
+              onToggleTask={onToggleTask}
+              onToggleSubtask={onToggleSubtask}
+              variant="active"
+            />
+          ))
         )}
       </ScrollView>
     );
@@ -91,12 +107,12 @@ const styles = StyleSheet.create({
   addCard: {
     borderRadius: Radius.large,
     borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.three,
+    padding: Spacing.four,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
+    gap: Spacing.three,
   },
-  addInput: { flex: 1, fontSize: 16 },
+  addInput: { flex: 1, fontSize: 17, paddingVertical: Spacing.one },
   emptyCard: {
     borderRadius: Radius.large,
     borderWidth: StyleSheet.hairlineWidth,

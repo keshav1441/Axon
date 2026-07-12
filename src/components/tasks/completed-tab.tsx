@@ -8,7 +8,17 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { TaskWithSubtasks } from '@/features/tasks/api';
 
-export function CompletedTab({ tasks, onChanged }: { tasks: TaskWithSubtasks[]; onChanged: () => void }) {
+export function CompletedTab({
+  tasks,
+  onChanged,
+  onToggleTask,
+  onToggleSubtask,
+}: {
+  tasks: TaskWithSubtasks[];
+  onChanged: () => void;
+  onToggleTask: (taskId: string, done: boolean) => void;
+  onToggleSubtask: (taskId: string, subtaskId: string, done: boolean) => void;
+}) {
   const theme = useTheme();
   const done = tasks.filter((t) => t.done);
 
@@ -22,7 +32,16 @@ export function CompletedTab({ tasks, onChanged }: { tasks: TaskWithSubtasks[]; 
           </ThemedText>
         </ThemedView>
       ) : (
-        done.map((task) => <TaskCard key={task.id} task={task} onChanged={onChanged} variant="completed" />)
+        done.map((task) => (
+          <TaskCard
+            key={task.id}
+            task={task}
+            onChanged={onChanged}
+            onToggleTask={onToggleTask}
+            onToggleSubtask={onToggleSubtask}
+            variant="completed"
+          />
+        ))
       )}
     </ScrollView>
   );

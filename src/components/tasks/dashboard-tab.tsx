@@ -64,8 +64,8 @@ export function DashboardTab({
       </ThemedView>
 
       <Pressable onPress={onAddTask} style={[styles.addShortcut, { borderColor: theme.border, backgroundColor: 'rgba(167,139,250,0.1)' }]}>
-        <Ionicons name="add-circle" size={20} color={ModuleColors.tasks} />
-        <ThemedText type="body" style={{ color: ModuleColors.tasks }}>
+        <Ionicons name="add-circle" size={24} color={ModuleColors.tasks} />
+        <ThemedText type="heading" style={{ color: ModuleColors.tasks }}>
           Add a task
         </ThemedText>
       </Pressable>
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     borderRadius: Radius.large,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: Spacing.three,
+    paddingVertical: Spacing.four,
   },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   emptyState: { alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.three },

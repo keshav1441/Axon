@@ -2,8 +2,10 @@ const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 const SYSTEM_PROMPT =
-  'Split the user\'s task into exactly 3 short, actionable subtasks. ' +
-  'Respond with ONLY a JSON object of shape {"subtasks": string[3]} - no markdown, no explanation, no code fences.';
+  "Split the user's task into short, actionable subtasks. Use as many as the task actually " +
+  'needs - could be 1, could be 5, never pad or force a fixed count. A trivial task may need ' +
+  'just 1 subtask; a complex one may need more. ' +
+  'Respond with ONLY a JSON object of shape {"subtasks": string[]} - no markdown, no explanation, no code fences.';
 
 /**
  * Raw fetch instead of an SDK: keeps this off Node built-ins that don't
