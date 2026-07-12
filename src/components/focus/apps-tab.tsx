@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
@@ -64,11 +64,36 @@ function AddAppPicker({ onAdded }: { onAdded: () => void }) {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
   const [apps, setApps] = useState<{ packageName: string; label: string }[]>([]);
+  const [addingPackage, setAddingPackage] = useState<string | null>(null);
 
   const toggleOpen = useCallback(() => {
-    if (!open) setApps(AxonNative.listInstalledApps());
+    if (!open) {
+      try {
+        setApps(AxonNative.listInstalledApps());
+      } catch (err) {
+        Alert.alert('Could not list apps', String(err));
+        return;
+      }
+    }
     setOpen((v) => !v);
   }, [open]);
+
+  const addApp = useCallback(
+    async (app: { packageName: string; label: string }) => {
+      setAddingPackage(app.packageName);
+      try {
+        await upsertFocusApp({ package_name: app.packageName, label: app.label, budget_minutes: null });
+        await pushFocusConfigToNative();
+        setOpen(false);
+        onAdded();
+      } catch (err) {
+        Alert.alert('Could not add app', String(err));
+      } finally {
+        setAddingPackage(null);
+      }
+    },
+    [onAdded],
+  );
 
   return (
     <View>
@@ -80,19 +105,22 @@ function AddAppPicker({ onAdded }: { onAdded: () => void }) {
       </Pressable>
       {open && (
         <ScrollView style={styles.appPickerList} nestedScrollEnabled>
-          {apps.map((app) => (
-            <Pressable
-              key={app.packageName}
-              style={[styles.appPickerRow, { borderTopColor: theme.border }]}
-              onPress={async () => {
-                await upsertFocusApp({ package_name: app.packageName, label: app.label, budget_minutes: null });
-                await pushFocusConfigToNative();
-                setOpen(false);
-                onAdded();
-              }}>
-              <ThemedText type="small">{app.label}</ThemedText>
-            </Pressable>
-          ))}
+          {apps.length === 0 ? (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.pickerEmpty}>
+              No apps found on this device.
+            </ThemedText>
+          ) : (
+            apps.map((app) => (
+              <Pressable
+                key={app.packageName}
+                style={[styles.appPickerRow, { borderTopColor: theme.border }]}
+                disabled={addingPackage !== null}
+                onPress={() => addApp(app)}>
+                <ThemedText type="small">{app.label}</ThemedText>
+                {addingPackage === app.packageName && <Ionicons name="hourglass-outline" size={14} color={theme.textSecondary} />}
+              </Pressable>
+            ))
+          )}
         </ScrollView>
       )}
     </View>
@@ -169,7 +197,11 @@ const styles = StyleSheet.create({
   },
   appPickerList: { maxHeight: 220 },
   appPickerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: Spacing.two,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
+  pickerEmpty: { paddingVertical: Spacing.two },
 });

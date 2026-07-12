@@ -8,6 +8,7 @@ import { ThemedView } from '@/components/themed-view';
 import { ModuleColors, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
+  addBankAccount,
   addManualTransaction,
   listBankAccounts,
   listTransactions,
@@ -224,13 +225,52 @@ function TransactionRowView({
   );
 }
 
-function AddTransactionForm({ onAdded }: { onAdded: () => void }) {
+function AddTransactionForm({
+  accounts,
+  onAdded,
+  onBankAdded,
+}: {
+  accounts: BankAccount[];
+  onAdded: () => void;
+  onBankAdded: () => void;
+}) {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
   const [direction, setDirection] = useState<'credit' | 'debit'>('credit');
   const [amount, setAmount] = useState('');
   const [merchant, setMerchant] = useState('');
+  const [bankAccountId, setBankAccountId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const [addingBank, setAddingBank] = useState(false);
+  const [newBankName, setNewBankName] = useState('');
+  const [newLastDigits, setNewLastDigits] = useState('');
+  const [newCardType, setNewCardType] = useState<'debit' | 'credit'>('debit');
+  const [savingBank, setSavingBank] = useState(false);
+
+  const submitBank = useCallback(async () => {
+    if (!newBankName.trim() || newLastDigits.trim().length < 4) {
+      Alert.alert('Missing info', 'Enter a bank name and the last 4 digits.');
+      return;
+    }
+    setSavingBank(true);
+    try {
+      const acc = await addBankAccount({
+        bankName: newBankName.trim(),
+        lastDigits: newLastDigits.trim().slice(-4),
+        cardType: newCardType,
+      });
+      setBankAccountId(acc.id);
+      setAddingBank(false);
+      setNewBankName('');
+      setNewLastDigits('');
+      onBankAdded();
+    } catch (err) {
+      Alert.alert('Could not add bank', String(err));
+    } finally {
+      setSavingBank(false);
+    }
+  }, [newBankName, newLastDigits, newCardType, onBankAdded]);
 
   const submit = useCallback(async () => {
     const parsed = Number(amount);
@@ -238,11 +278,16 @@ function AddTransactionForm({ onAdded }: { onAdded: () => void }) {
       Alert.alert('Invalid amount', 'Enter an amount greater than 0.');
       return;
     }
+    if (!bankAccountId) {
+      Alert.alert('Bank required', 'Select or add a bank account for this transaction.');
+      return;
+    }
     setSubmitting(true);
     try {
-      await addManualTransaction({ amount: parsed, direction, merchant: merchant.trim() || undefined });
+      await addManualTransaction({ amount: parsed, direction, merchant: merchant.trim() || undefined, bankAccountId });
       setAmount('');
       setMerchant('');
+      setBankAccountId(null);
       setOpen(false);
       onAdded();
     } catch (err) {
@@ -250,7 +295,7 @@ function AddTransactionForm({ onAdded }: { onAdded: () => void }) {
     } finally {
       setSubmitting(false);
     }
-  }, [amount, direction, merchant, onAdded]);
+  }, [amount, direction, merchant, bankAccountId, onAdded]);
 
   if (!open) {
     return (
@@ -292,7 +337,79 @@ function AddTransactionForm({ onAdded }: { onAdded: () => void }) {
         placeholderTextColor={theme.textSecondary}
         style={[styles.input, { color: theme.text, borderColor: theme.border }]}
       />
-      <Pressable style={[styles.addButton, submitting && { opacity: 0.6 }]} onPress={submit} disabled={submitting}>
+
+      <ThemedText type="micro" themeColor="textSecondary">
+        BANK ACCOUNT
+      </ThemedText>
+      <View style={styles.bankChipRow}>
+        {accounts.map((a) => (
+          <Pressable
+            key={a.id}
+            onPress={() => setBankAccountId(a.id)}
+            style={[styles.bankChip, { borderColor: theme.border }, bankAccountId === a.id && styles.bankChipActive]}>
+            <ThemedText type="small" style={bankAccountId === a.id ? { color: ModuleColors.money } : undefined}>
+              {a.label || `${a.bankName} ••${a.lastDigits}`}
+            </ThemedText>
+          </Pressable>
+        ))}
+        <Pressable
+          onPress={() => setAddingBank((v) => !v)}
+          style={[styles.bankChip, { borderColor: theme.border }, addingBank && styles.bankChipActive]}>
+          <Ionicons name="add" size={14} color={addingBank ? ModuleColors.money : theme.textSecondary} />
+          <ThemedText type="small" style={addingBank ? { color: ModuleColors.money } : undefined}>
+            New bank
+          </ThemedText>
+        </Pressable>
+      </View>
+
+      {accounts.length === 0 && !addingBank && (
+        <ThemedText type="small" themeColor="textSecondary">
+          No bank linked yet — add one to attach this transaction.
+        </ThemedText>
+      )}
+
+      {addingBank && (
+        <View style={styles.inlineBankForm}>
+          <TextInput
+            value={newBankName}
+            onChangeText={setNewBankName}
+            placeholder="Bank name"
+            placeholderTextColor={theme.textSecondary}
+            style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+          />
+          <TextInput
+            value={newLastDigits}
+            onChangeText={setNewLastDigits}
+            placeholder="Last 4 digits"
+            placeholderTextColor={theme.textSecondary}
+            keyboardType="number-pad"
+            maxLength={4}
+            style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+          />
+          <View style={styles.typeRow}>
+            {(['debit', 'credit'] as const).map((type) => (
+              <Pressable
+                key={type}
+                onPress={() => setNewCardType(type)}
+                style={[styles.typeChip, newCardType === type && styles.typeChipActive]}>
+                <ThemedText type="small" style={newCardType === type ? { color: ModuleColors.money } : undefined}>
+                  {type === 'debit' ? 'Debit card' : 'Credit card'}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable style={[styles.addButton, savingBank && { opacity: 0.6 }]} onPress={submitBank} disabled={savingBank}>
+            <ThemedText type="body" style={styles.addButtonText}>
+              {savingBank ? 'Saving…' : 'Save bank'}
+            </ThemedText>
+          </Pressable>
+        </View>
+      )}
+
+      <Pressable
+        style={[styles.addButton, (submitting || !bankAccountId) && { opacity: 0.5 }]}
+        onPress={submit}
+        disabled={submitting || !bankAccountId}>
         <ThemedText type="body" style={styles.addButtonText}>
           {submitting ? 'Adding…' : 'Add'}
         </ThemedText>
@@ -365,7 +482,7 @@ export function TransactionsTab() {
     <>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <ThemedView type="backgroundElement" style={styles.card}>
-          <AddTransactionForm onAdded={load} />
+          <AddTransactionForm accounts={accounts} onAdded={load} onBankAdded={load} />
         </ThemedView>
 
         {transactions.length === 0 ? (
@@ -453,6 +570,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
   typeChipActive: { backgroundColor: 'rgba(52,211,153,0.18)' },
+  bankChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  bankChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.half,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: Radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  bankChipActive: { backgroundColor: 'rgba(52,211,153,0.18)', borderColor: ModuleColors.money },
+  inlineBankForm: { gap: Spacing.two, marginTop: Spacing.one },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: Radius.medium,

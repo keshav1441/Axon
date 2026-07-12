@@ -58,12 +58,13 @@ export async function addManualTransaction(input: {
   amount: number;
   direction: 'debit' | 'credit';
   merchant?: string;
-  bankAccountId?: string;
+  bankAccountId: string;
 }): Promise<TransactionRow> {
   return apiPost<TransactionRow>('/api/money', {
     amount: input.amount.toFixed(2),
     direction: input.direction,
     merchant: input.merchant,
+    bankAccountId: input.bankAccountId,
     source: 'manual',
     occurredAt: new Date().toISOString(),
     dedupRef: `manual:${Date.now()}:${Math.random().toString(36).slice(2)}`,

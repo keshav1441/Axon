@@ -37,6 +37,8 @@ export const ActiveTab = forwardRef<ActiveTabHandle, { tasks: TaskWithSubtasks[]
           }
           setManualText('');
           await onChanged();
+        } catch (err) {
+          Alert.alert('Could not add task', String(err));
         } finally {
           setCreating(false);
         }

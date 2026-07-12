@@ -16,6 +16,7 @@ export type TaskWithSubtasks = {
   done: boolean;
   nag_interval_minutes: number | null;
   subtasks: SubtaskView[];
+  createdAt: string;
 };
 
 function toSubtaskView(row: TaskRow): SubtaskView {
@@ -39,6 +40,7 @@ export async function listTasksWithSubtasks(): Promise<TaskWithSubtasks[]> {
     done: t.status === 'done',
     nag_interval_minutes: t.nagSchedule != null ? Number(t.nagSchedule) : null,
     subtasks: (byParent.get(t.id) ?? []).map(toSubtaskView),
+    createdAt: t.createdAt,
   }));
 }
 

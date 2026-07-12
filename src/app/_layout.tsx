@@ -5,7 +5,7 @@ import { AppState } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { AuthGate } from '@/components/auth-gate';
-import { isLoggedIn } from '@/features/auth/api';
+import { isLoggedIn, subscribeAuthChange } from '@/features/auth/api';
 import { useFocusSessionTracking } from '@/features/focus/use-focus-session-tracking';
 import { useTransactionCapture } from '@/features/money/use-transaction-capture';
 import { ThemePreferenceProvider, useThemePreference } from '@/hooks/use-theme-preference';
@@ -21,6 +21,7 @@ function AuthedApp() {
       <Stack.Screen name="money" />
       <Stack.Screen name="tasks" />
       <Stack.Screen name="focus" />
+      <Stack.Screen name="analytics" />
       <Stack.Screen name="settings" />
     </Stack>
   );
@@ -44,6 +45,8 @@ function RootContent() {
     });
     return () => sub.remove();
   }, [checkAuth]);
+
+  useEffect(() => subscribeAuthChange(checkAuth), [checkAuth]);
 
   return (
     <ThemeProvider value={resolvedScheme === 'dark' ? DarkTheme : DefaultTheme}>

@@ -12,6 +12,7 @@ const CreateTransactionSchema = z.object({
   merchant: z.string().optional(),
   accountTail: z.string().optional(),
   bankName: z.string().optional(),
+  bankAccountId: z.string().optional(),
   source: z.enum(['sms', 'notif', 'manual']),
   occurredAt: z.string().datetime(),
   dedupRef: z.string().min(1),
@@ -60,7 +61,15 @@ export async function createTransaction(
   const category = guessCategory(data.merchant, learnedRules);
 
   let bankAccountId: string | undefined;
-  if (data.accountTail) {
+  if (data.bankAccountId) {
+    const [owned] = await db
+      .select({ id: bankAccounts.id })
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.userId, userId), eq(bankAccounts.id, data.bankAccountId)))
+      .limit(1);
+    bankAccountId = owned?.id;
+  }
+  if (!bankAccountId && data.accountTail) {
     const accounts = await db.select().from(bankAccounts).where(eq(bankAccounts.userId, userId));
     const match = accounts.find((a) => {
       const lastDigits = decryptField(a.lastDigits, encryptionKey);

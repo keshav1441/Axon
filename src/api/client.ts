@@ -32,15 +32,29 @@ async function refreshAccessToken(): Promise<boolean> {
   return true;
 }
 
+const REQUEST_TIMEOUT_MS = 15000;
+
 async function rawFetch(path: string, options: RequestInit, accessToken: string | null): Promise<Response> {
-  return fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      'content-type': 'application/json',
-      ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
-      ...options.headers,
-    },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(`${API_URL}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'content-type': 'application/json',
+        ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
+        ...options.headers,
+      },
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new ApiError(0, 'TIMEOUT', `Request to ${path} timed out`);
+    }
+    throw new ApiError(0, 'NETWORK_ERROR', err instanceof Error ? err.message : 'Network request failed');
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {

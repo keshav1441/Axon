@@ -37,8 +37,14 @@ const LAUNCHERS = [
   { route: '/money', label: 'Expenses', icon: 'wallet', accent: ModuleColors.money },
   { route: '/tasks', label: 'Tasks', icon: 'checkmark-circle', accent: ModuleColors.tasks },
   { route: '/focus', label: 'Focus', icon: 'timer', accent: ModuleColors.focus },
+  { route: '/analytics', label: 'Analytics', icon: 'bar-chart', accent: ModuleColors.home },
   { route: '/settings', label: 'Settings', icon: 'settings-outline', accent: ModuleColors.home },
-] as const satisfies { route: '/money' | '/tasks' | '/focus' | '/settings'; label: string; icon: keyof typeof Ionicons.glyphMap; accent: string }[];
+] as const satisfies {
+  route: '/money' | '/tasks' | '/focus' | '/analytics' | '/settings';
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  accent: string;
+}[];
 
 export default function HomeScreen() {
   const theme = useTheme();
