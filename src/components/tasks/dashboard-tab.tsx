@@ -19,11 +19,14 @@ export function DashboardTab({
 }) {
   const theme = useTheme();
 
-  const { open, done, pct, upNext } = useMemo(() => {
+  const { open, done, pct, upNext, reminders } = useMemo(() => {
     const open = tasks.filter((t) => !t.done);
     const done = tasks.filter((t) => t.done);
     const pct = tasks.length ? Math.round((done.length / tasks.length) * 100) : 0;
-    return { open, done, pct, upNext: open.slice(0, 3) };
+    const reminders = open
+      .filter((t) => t.nag_interval_minutes != null)
+      .sort((a, b) => a.nag_interval_minutes! - b.nag_interval_minutes!);
+    return { open, done, pct, upNext: open.slice(0, 3), reminders };
   }, [tasks]);
 
   return (
@@ -104,6 +107,23 @@ export function DashboardTab({
           ))
         )}
       </ThemedView>
+
+      {reminders.length > 0 && (
+        <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.border }]}>
+          <ThemedText type="heading">Upcoming reminders</ThemedText>
+          {reminders.map((t) => (
+            <Pressable key={t.id} onPress={onSeeActive} style={styles.reminderRow}>
+              <Ionicons name="alarm-outline" size={16} color={ModuleColors.tasks} />
+              <ThemedText type="body" style={styles.upNextTitle} numberOfLines={1}>
+                {t.title}
+              </ThemedText>
+              <ThemedText type="micro" themeColor="textSecondary">
+                every {t.nag_interval_minutes}m
+              </ThemedText>
+            </Pressable>
+          ))}
+        </ThemedView>
+      )}
     </ScrollView>
   );
 }
@@ -137,4 +157,10 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
   },
   upNextTitle: { flex: 1 },
+  reminderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+  },
 });

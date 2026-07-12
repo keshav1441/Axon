@@ -36,6 +36,7 @@ describe('getDashboardSummary', () => {
     if (done.ok) {
       await db.update(tasks).set({ status: 'done' }).where(eq(tasks.id, done.body.id));
     }
+    await db.insert(focusApps).values({ userId, packageName: 'com.instagram.android', label: 'Instagram' });
     const startedAt = new Date(now.getTime() - 20 * 60_000).toISOString();
     const endedAt = now.toISOString();
     await createSession(db, userId, { appPackage: 'com.instagram.android', startedAt, endedAt });

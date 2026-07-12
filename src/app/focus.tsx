@@ -16,11 +16,22 @@ import {
   getFocusStreakDays,
   getUsageMinutesByPackage,
   listFocusSessions,
+  recordFocusSession,
   type FocusApp,
   type FocusSession,
 } from '@/features/focus/api';
 import { pushFocusConfigToNative } from '@/features/focus/config';
+import {
+  clearPersistedFocusModeState,
+  getPersistedFocusModeState,
+  setPersistedFocusModeState,
+  FOCUS_MODE_SESSION_PACKAGE,
+} from '@/features/focus/focus-mode';
 import { AxonNative, usePermissionStatus } from '@/native/axon-native';
+import { readCache, writeCache } from '@/lib/cache';
+
+const FOCUS_CACHE_KEY = 'focus-data';
+type FocusCache = { apps: FocusApp[]; usage: Record<string, number>; sessions: FocusSession[]; streak: number };
 
 type FocusTab = 'dashboard' | 'apps' | 'history';
 
@@ -38,6 +49,7 @@ export default function FocusScreen() {
   const [sessions, setSessions] = useState<FocusSession[]>([]);
   const [streak, setStreak] = useState(0);
   const [focusModeActiveUntil, setFocusModeActiveUntil] = useState<number | null>(null);
+  const [focusModeStartedAt, setFocusModeStartedAt] = useState<number | null>(null);
   const overlayPermission = usePermissionStatus('overlay');
 
   const load = useCallback(async () => {
@@ -51,6 +63,17 @@ export default function FocusScreen() {
     setUsage(freshUsage);
     setStreak(freshStreak);
     setSessions(freshSessions);
+    writeCache<FocusCache>(FOCUS_CACHE_KEY, { apps: freshApps, usage: freshUsage, sessions: freshSessions, streak: freshStreak });
+  }, []);
+
+  useEffect(() => {
+    readCache<FocusCache>(FOCUS_CACHE_KEY).then((cached) => {
+      if (!cached) return;
+      setApps(cached.apps);
+      setUsage(cached.usage);
+      setSessions(cached.sessions);
+      setStreak(cached.streak);
+    });
   }, []);
 
   useFocusEffect(
@@ -59,20 +82,41 @@ export default function FocusScreen() {
     }, [load]),
   );
 
+  // Restore Focus Mode's "still active" UI on mount/remount - the native
+  // overlay keeps running regardless of this screen's lifecycle, only the
+  // JS-side end-time needs recovering from persisted storage.
   useEffect(() => {
-    if (!focusModeActiveUntil) return;
+    getPersistedFocusModeState().then((persisted) => {
+      if (persisted && persisted.until > Date.now()) {
+        setFocusModeStartedAt(persisted.startedAt);
+        setFocusModeActiveUntil(persisted.until);
+      } else if (persisted) {
+        // Expired while the app/screen was away - record what actually ran and clean up.
+        recordFocusSession(FOCUS_MODE_SESSION_PACKAGE, persisted.startedAt, persisted.until).catch(() => {});
+        clearPersistedFocusModeState();
+        AxonNative.stopFocusMode();
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!focusModeActiveUntil || !focusModeStartedAt) return;
     const remaining = focusModeActiveUntil - Date.now();
-    if (remaining <= 0) {
+    const finish = () => {
       AxonNative.stopFocusMode();
+      recordFocusSession(FOCUS_MODE_SESSION_PACKAGE, focusModeStartedAt, focusModeActiveUntil).catch(() => {});
+      clearPersistedFocusModeState();
       setFocusModeActiveUntil(null);
+      setFocusModeStartedAt(null);
+      load();
+    };
+    if (remaining <= 0) {
+      finish();
       return;
     }
-    const timer = setTimeout(() => {
-      AxonNative.stopFocusMode();
-      setFocusModeActiveUntil(null);
-    }, remaining);
+    const timer = setTimeout(finish, remaining);
     return () => clearTimeout(timer);
-  }, [focusModeActiveUntil]);
+  }, [focusModeActiveUntil, focusModeStartedAt, load]);
 
   const startFocusMode = useCallback(
     (minutes: number) => {
@@ -81,15 +125,25 @@ export default function FocusScreen() {
         return;
       }
       AxonNative.startFocusMode();
-      setFocusModeActiveUntil(Date.now() + minutes * 60_000);
+      const startedAt = Date.now();
+      const until = startedAt + minutes * 60_000;
+      setPersistedFocusModeState({ startedAt, until, plannedMinutes: minutes });
+      setFocusModeStartedAt(startedAt);
+      setFocusModeActiveUntil(until);
     },
     [overlayPermission],
   );
 
   const stopFocusMode = useCallback(() => {
     AxonNative.stopFocusMode();
+    if (focusModeStartedAt) {
+      recordFocusSession(FOCUS_MODE_SESSION_PACKAGE, focusModeStartedAt, Date.now()).catch(() => {});
+    }
+    clearPersistedFocusModeState();
     setFocusModeActiveUntil(null);
-  }, []);
+    setFocusModeStartedAt(null);
+    load();
+  }, [focusModeStartedAt, load]);
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {

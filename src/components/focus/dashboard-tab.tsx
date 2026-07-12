@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
@@ -43,6 +43,19 @@ export function DashboardTab({
   onStopFocusMode: () => void;
 }) {
   const theme = useTheme();
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customMinutes, setCustomMinutes] = useState('');
+
+  const submitCustomFocusMode = useCallback(() => {
+    const parsed = Number(customMinutes);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      Alert.alert('Invalid', 'Enter a number of minutes greater than 0.');
+      return;
+    }
+    setCustomMinutes('');
+    setCustomOpen(false);
+    onStartFocusMode(Math.round(parsed));
+  }, [customMinutes, onStartFocusMode]);
 
   const { totalUsage, totalBudget } = useMemo(() => {
     let totalUsage = 0;
@@ -69,7 +82,7 @@ export function DashboardTab({
           </ThemedText>
         </View>
         <ThemedText type="small" themeColor="textSecondary">
-          {streak === 1 ? 'day under budget' : 'days under budget'}
+          {streak === 1 ? 'day under limit' : 'days under limit'}
         </ThemedText>
       </ThemedView>
 
@@ -110,16 +123,43 @@ export function DashboardTab({
             </Pressable>
           </View>
         ) : (
-          <View style={styles.presetRow}>
-            {FOCUS_MODE_PRESETS_MIN.map((minutes) => (
+          <View style={styles.gap2}>
+            <View style={styles.presetRow}>
+              {FOCUS_MODE_PRESETS_MIN.map((minutes) => (
+                <Pressable
+                  key={minutes}
+                  onPress={() => onStartFocusMode(minutes)}
+                  style={[styles.presetButton, { borderColor: theme.border }]}>
+                  <Ionicons name="timer-outline" size={15} color={ModuleColors.focus} />
+                  <ThemedText type="small">{minutes}m</ThemedText>
+                </Pressable>
+              ))}
               <Pressable
-                key={minutes}
-                onPress={() => onStartFocusMode(minutes)}
-                style={[styles.presetButton, { borderColor: theme.border }]}>
-                <Ionicons name="timer-outline" size={15} color={ModuleColors.focus} />
-                <ThemedText type="small">{minutes}m</ThemedText>
+                onPress={() => setCustomOpen((v) => !v)}
+                style={[styles.presetButton, { borderColor: theme.border }, customOpen && styles.presetButtonActive]}>
+                <Ionicons name="options-outline" size={15} color={ModuleColors.focus} />
+                <ThemedText type="small">Custom</ThemedText>
               </Pressable>
-            ))}
+            </View>
+
+            {customOpen && (
+              <View style={styles.customRow}>
+                <TextInput
+                  value={customMinutes}
+                  onChangeText={setCustomMinutes}
+                  placeholder="Minutes"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="number-pad"
+                  autoFocus
+                  style={[styles.customInput, { color: theme.text, borderColor: theme.border }]}
+                />
+                <Pressable style={styles.customStartButton} onPress={submitCustomFocusMode}>
+                  <ThemedText type="small" style={styles.customStartButtonText}>
+                    Start
+                  </ThemedText>
+                </Pressable>
+              </View>
+            )}
           </View>
         )}
       </ThemedView>
@@ -157,7 +197,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  presetRow: { flexDirection: 'row', gap: Spacing.two },
+  presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   presetButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -167,6 +207,26 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
   },
+  presetButtonActive: {
+    backgroundColor: 'rgba(245,185,66,0.14)',
+    borderColor: 'rgba(245,185,66,0.4)',
+  },
+  customRow: { flexDirection: 'row', gap: Spacing.two, alignItems: 'center' },
+  customInput: {
+    flex: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.medium,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    fontSize: 15,
+  },
+  customStartButton: {
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.two,
+    borderRadius: Radius.pill,
+    backgroundColor: ModuleColors.focus,
+  },
+  customStartButtonText: { color: '#3A2A00', fontWeight: '700' },
   permissionRow: {
     flexDirection: 'row',
     alignItems: 'center',

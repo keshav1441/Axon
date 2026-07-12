@@ -1,6 +1,6 @@
 import { and, eq, gte } from 'drizzle-orm';
 import type { Db } from '../../db/client';
-import { transactions, tasks } from '../../db/schema';
+import { transactions, tasks, focusApps } from '../../db/schema';
 import { getUsageMinutesByPackage, getFocusStreakDays } from '../focus/usage';
 
 export async function getDashboardSummary(db: Db, userId: string) {
@@ -24,8 +24,12 @@ export async function getDashboardSummary(db: Db, userId: string) {
   const tasksDone = userTasks.filter((t) => t.status === 'done').length;
   const tasksTotal = userTasks.length;
 
+  // Only sum currently-configured distraction apps - excludes Focus Mode block
+  // sessions (a separate, non-distraction concept recorded in the same table)
+  // and any stray rows for apps that are no longer tracked.
+  const distractionApps = await db.select().from(focusApps).where(eq(focusApps.userId, userId));
   const usageToday = await getUsageMinutesByPackage(db, userId, 0);
-  const screenTimeMinutesToday = Object.values(usageToday).reduce((sum, m) => sum + m, 0);
+  const screenTimeMinutesToday = distractionApps.reduce((sum, app) => sum + (usageToday[app.packageName] ?? 0), 0);
 
   const focusStreakDays = await getFocusStreakDays(db, userId);
 

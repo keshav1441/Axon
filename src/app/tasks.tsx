@@ -20,6 +20,9 @@ import {
   toggleTaskDone,
   type TaskWithSubtasks,
 } from '@/features/tasks/api';
+import { readCache, writeCache } from '@/lib/cache';
+
+const TASKS_CACHE_KEY = 'tasks-list';
 
 type TasksTab = 'dashboard' | 'active' | 'completed';
 
@@ -41,7 +44,15 @@ export default function TasksScreen() {
   }, [tasks]);
 
   const load = useCallback(async () => {
-    setTasks(await listTasksWithSubtasks());
+    const fresh = await listTasksWithSubtasks();
+    setTasks(fresh);
+    writeCache(TASKS_CACHE_KEY, fresh);
+  }, []);
+
+  useEffect(() => {
+    readCache<TaskWithSubtasks[]>(TASKS_CACHE_KEY).then((cached) => {
+      if (cached) setTasks(cached);
+    });
   }, []);
 
   useFocusEffect(

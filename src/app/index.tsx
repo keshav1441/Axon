@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, router } from 'expo-router';
@@ -10,6 +10,9 @@ import { ThemedView } from '@/components/themed-view';
 import { ModuleColors, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getDashboardSummary, type DashboardSummary } from '@/features/dashboard/summary';
+import { readCache, writeCache } from '@/lib/cache';
+
+const SUMMARY_CACHE_KEY = 'home-summary';
 
 function formatRupees(amount: number): string {
   return `₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
@@ -51,9 +54,18 @@ export default function HomeScreen() {
   const [summary, setSummary] = useState<DashboardSummary>(EMPTY_SUMMARY);
   const quote = useMemo(() => QUOTES[Math.floor(Math.random() * QUOTES.length)], []);
 
+  useEffect(() => {
+    readCache<DashboardSummary>(SUMMARY_CACHE_KEY).then((cached) => {
+      if (cached) setSummary(cached);
+    });
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      getDashboardSummary().then(setSummary);
+      getDashboardSummary().then((fresh) => {
+        setSummary(fresh);
+        writeCache(SUMMARY_CACHE_KEY, fresh);
+      });
     }, []),
   );
 

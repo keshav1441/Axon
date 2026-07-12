@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,8 +18,11 @@ import {
 } from '@/features/money/api';
 import { CATEGORIES } from '@/features/money/categories';
 import { getCustomCategories, getHiddenDefaultCategories } from '@/features/money/custom-categories';
-import { exportTransactionsCsv } from '@/features/money/backup';
 import { formatRupees } from '@/features/money/format';
+import { readCache, writeCache } from '@/lib/cache';
+
+const TRANSACTIONS_CACHE_KEY = 'money-transactions';
+const ACCOUNTS_CACHE_KEY = 'money-accounts';
 
 const ASSIGNABLE_DEFAULTS: string[] = CATEGORIES.filter((c) => c !== 'Uncategorized');
 
@@ -450,7 +453,18 @@ export function TransactionsTab() {
     setAccounts(accs);
     setCustomCategories(custom);
     setHiddenDefaults(hidden);
+    writeCache(TRANSACTIONS_CACHE_KEY, txs);
+    writeCache(ACCOUNTS_CACHE_KEY, accs);
     return txs;
+  }, []);
+
+  useEffect(() => {
+    readCache<TransactionRow[]>(TRANSACTIONS_CACHE_KEY).then((cached) => {
+      if (cached) setTransactions(cached);
+    });
+    readCache<BankAccount[]>(ACCOUNTS_CACHE_KEY).then((cached) => {
+      if (cached) setAccounts(cached);
+    });
   }, []);
 
   useFocusEffect(
@@ -471,14 +485,6 @@ export function TransactionsTab() {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []),
   );
-
-  const onExport = useCallback(async () => {
-    try {
-      await exportTransactionsCsv();
-    } catch (err) {
-      Alert.alert('Export failed', String(err));
-    }
-  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -515,12 +521,6 @@ export function TransactionsTab() {
             />
           ))
         )}
-
-        <Pressable style={styles.exportButton} onPress={onExport}>
-          <ThemedText type="body" style={styles.exportButtonText}>
-            Export as CSV
-          </ThemedText>
-        </Pressable>
       </ScrollView>
 
       {editingTx && (
@@ -610,13 +610,6 @@ const styles = StyleSheet.create({
     backgroundColor: ModuleColors.money,
   },
   addButtonText: { fontWeight: '600', color: '#04120C' },
-  exportButton: {
-    alignItems: 'center',
-    paddingVertical: Spacing.three,
-    borderRadius: Radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  exportButtonText: { fontWeight: '600' },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
